@@ -9,8 +9,10 @@ function getMessageRoutes() {
 }
 
 async function index(req, res) {
+  const { currentUser } = res.locals;
   const searchTerm = req.query.search;
-  const { data, error } = await getMessages(searchTerm);
+
+  const { data, error } = await getMessages(currentUser.sub, searchTerm);
   if (error) {
     return res.status(400).json(error);
   }
@@ -21,8 +23,9 @@ async function index(req, res) {
 async function create(req, res) {
   const text = req.body.text;
   const attachments = req.body.attachments;
+  const { currentUser } = res.locals;
 
-  const { error } = await createMessage(text, attachments);
+  const { error } = await createMessage(currentUser.sub, text, attachments);
   if (error) {
     return res.status(400).json(error);
   }
