@@ -47,6 +47,8 @@ Edit the .env file and add the required values.
 To start the project, use the following command:
 
 ```sh
+pnpm dev # runs nodemon
+# or
 pnpm start
 ```
 
