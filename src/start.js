@@ -3,7 +3,7 @@ import bodyParser from "body-parser";
 import pino from "pino-http";
 
 import routes from "./routes.js";
-import { authenticateUser } from "./auth.js";
+import { authenticateUser, authorizeUser } from "./auth.js";
 
 export function startServer() {
   const app = express();
@@ -12,6 +12,9 @@ export function startServer() {
   app.use(logger);
   app.use(bodyParser.json());
   app.use(authenticateUser);
+  if (process.env.INVITE_ONLY === "true") {
+    app.use(authorizeUser);
+  }
   app.use("/api", routes);
 
   const PORT = process.env.PORT || 3000;
