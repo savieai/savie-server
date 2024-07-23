@@ -1,3 +1,3 @@
-import getUserRoutes from "./userHandlers.js";
+import { getUserRoutes, getUserRoutesPublic } from "./userHandlers.js";
 
-export { getUserRoutes };
+export { getUserRoutes, getUserRoutesPublic };
