@@ -15,6 +15,15 @@ export async function getInvites(userId) {
  * @returns {Promise<{data: Object|null, error: Error|null}>} Object containing the created invite data or an error.
  */
 export async function createInvite(inviterId) {
+  const { data: existingInvites, error: inviteFetchErr } = await getInvites(inviterId);
+  if (inviteFetchErr) {
+    return { error: inviteFetchErr };
+  }
+
+  if (existingInvites.length >= parseInt(process.env.MAX_INVITES_ALLOWED)) {
+    return { error: { status: 400, statusText: "Invite limit exceeded" } };
+  }
+
   const code = await generateUniqueInviteCode();
   const { data, error } = await supabase
     .from("invite_codes")
