@@ -5,6 +5,11 @@ function getInviteRoutes() {
   const router = express.Router();
   router.get("/", index);
   router.post("/", create);
+  return router;
+}
+
+function getInviteRoutesNonAuthorized() {
+  const router = express.Router();
   router.put("/:id", update);
   return router;
 }
@@ -39,4 +44,4 @@ async function update(req, res) {
   return res.json(data);
 }
 
-export default getInviteRoutes;
+export { getInviteRoutes, getInviteRoutesNonAuthorized };

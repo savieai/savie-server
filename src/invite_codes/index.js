@@ -1,3 +1,3 @@
-import getInviteRoutes from "./inviteHandlers.js";
+import { getInviteRoutes, getInviteRoutesNonAuthorized } from "./inviteHandlers.js";
 
-export { getInviteRoutes };
+export { getInviteRoutes, getInviteRoutesNonAuthorized };
