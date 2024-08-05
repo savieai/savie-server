@@ -4,12 +4,8 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SEC
 export async function getMessages(userId) {
   const { data, error } = await supabase
     .from("messages")
-    .select(`*, links(url), attachments(attachment_type, name, url)`)
+    .select(`*, links(url), attachments(attachment_type, name, signed_url)`)
     .eq("user_id", userId);
-
-  console.log({
-    data: data,
-  });
 
   return { data, error };
 }
@@ -38,7 +34,13 @@ export async function createMessage({
 
   const messageId = data.id;
   const linksData = transformLinks({ messageId, links });
-  const attachmentsData = mergeAttachments({ messageId, images, file_attachments });
+  let attachmentsData = mergeAttachments({ messageId, images, file_attachments });
+  let signingError;
+  ({ data: attachmentsData, error: signingError } = await addSignedUrls(attachmentsData));
+
+  if (signingError) {
+    return { error: signingError };
+  }
 
   const [{ error: linksError }, { error: attachmentsError }] = await Promise.all([
     supabase.from("links").insert(linksData),
@@ -108,4 +110,29 @@ function mergeAttachments({ messageId, images = [], file_attachments = [] }) {
   ];
 
   return attachments;
+}
+
+async function addSignedUrls(
+  attachmentsData,
+  bucket = "message_attachments",
+  time = 60 * 60 * 24 * 30 * 3,
+) {
+  const attachmentUrls = attachmentsData.map((attachment) => attachment.url);
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrls(attachmentUrls, time);
+
+  if (error) {
+    return { error: error };
+  }
+
+  const updatedAttachments = attachmentsData.map((attachment) => {
+    const matchingItem = data.find((item) => item.path === attachment.url);
+    if (matchingItem) {
+      return { ...attachment, signed_url: matchingItem.signedUrl };
+    }
+    return attachment;
+  });
+
+  return { data: updatedAttachments };
 }
