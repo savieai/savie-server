@@ -18,12 +18,18 @@ export async function createMessage({
   voice_message_url,
 }) {
   let links = extractLinks(text_content);
+  const { signedUrl, error } = await generatePublicVoiceMessageUrl(voice_message_url);
+  if (error) {
+    return { error };
+  }
+
   const { data, error: messageError } = await supabase
     .from("messages")
     .upsert({
       user_id: userId,
       text_content: text_content,
       voice_message_url: voice_message_url,
+      voice_message_url_signed: signedUrl,
     })
     .select("id")
     .single();
@@ -115,9 +121,10 @@ function mergeAttachments({ messageId, images = [], file_attachments = [] }) {
 async function addSignedUrls(
   attachmentsData,
   bucket = "message_attachments",
-  time = 60 * 60 * 24 * 30 * 3,
+  time = 60 * 60 * 24 * 30 * 6,
 ) {
   const attachmentUrls = attachmentsData.map((attachment) => attachment.url);
+  if (attachmentUrls.length === 0) return { data: attachmentsData };
   const { data, error } = await supabase.storage
     .from(bucket)
     .createSignedUrls(attachmentUrls, time);
@@ -135,4 +142,17 @@ async function addSignedUrls(
   });
 
   return { data: updatedAttachments };
+}
+
+async function generatePublicVoiceMessageUrl(
+  voiceUrl,
+  bucket = "voice_messages",
+  expiresIn = 60 * 60 * 24 * 30 * 6,
+) {
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(voiceUrl, expiresIn);
+
+  if (error) {
+    return { error };
+  }
+  return { signedUrl: data.signedUrl };
 }
