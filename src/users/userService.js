@@ -16,9 +16,14 @@ export async function deleteAuthUser(userId) {
 
 export async function getUser(userId) {
   const { data, error } = await supabase.from("users").select().eq("user_id", userId).maybeSingle();
-  console.log({
-    data: data,
-    error: error,
-  });
+  return { data, error };
+}
+
+export async function updateUser(userId, notifyPro = false, joinWaitlist = false) {
+  const { data, error } = await supabase
+    .from("users")
+    .update({ notify_pro: notifyPro, join_waitlist: joinWaitlist })
+    .eq("user_id", userId);
+
   return { data, error };
 }
