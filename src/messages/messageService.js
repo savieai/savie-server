@@ -145,10 +145,13 @@ async function addSignedUrls(
 }
 
 async function generatePublicVoiceMessageUrl(
-  voiceUrl,
+  voiceUrl = "",
   bucket = "voice_messages",
   expiresIn = 60 * 60 * 24 * 30 * 6,
 ) {
+  if (voiceUrl.length <= 0) {
+    return;
+  }
   const { data, error } = await supabase.storage.from(bucket).createSignedUrl(voiceUrl, expiresIn);
 
   if (error) {
