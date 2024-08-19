@@ -95,7 +95,7 @@ export async function searchMessages({ userId, keyword, type }) {
 
 function extractLinks(text) {
   const linkRegex = /\b(?:https?:\/\/)?(?:www\.)?(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:\/[^\s]*)?/g;
-  return text.match(linkRegex) || [];
+  return text?.match(linkRegex) || [];
 }
 
 function transformLinks({ links, messageId }) {
