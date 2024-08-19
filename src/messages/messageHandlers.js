@@ -10,47 +10,59 @@ function getMessageRoutes() {
 }
 
 async function index(req, res) {
-  const { currentUser } = res.locals;
+  try {
+    const { currentUser } = res.locals;
 
-  const { data, error } = await getMessages(currentUser.sub);
-  if (error) {
-    return res.status(400).json(error);
+    const { data, error } = await getMessages(currentUser.sub);
+    if (error) {
+      return res.status(400).json(error);
+    }
+
+    res.status(200).json(data);
+  } catch (e) {
+    res.status(500).json({ message: "Unexpected error" });
   }
-
-  res.status(200).json(data);
 }
 
 async function create(req, res) {
-  const text_content = req.body.text_content;
-  const file_attachments = req.body.file_attachments;
-  const images = req.body.images;
-  const voice_message_url = req.body.voice_message_url;
-  const { currentUser } = res.locals;
+  try {
+    const text_content = req.body.text_content;
+    const file_attachments = req.body.file_attachments;
+    const images = req.body.images;
+    const voice_message_url = req.body.voice_message_url;
+    const { currentUser } = res.locals;
 
-  const { error } = await createMessage({
-    userId: currentUser.sub,
-    text_content,
-    file_attachments,
-    images,
-    voice_message_url,
-  });
-  if (error) {
-    return res.status(400).json(error);
+    const { error } = await createMessage({
+      userId: currentUser.sub,
+      text_content,
+      file_attachments,
+      images,
+      voice_message_url,
+    });
+    if (error) {
+      return res.status(400).json(error);
+    }
+
+    res.status(200).json({ message: "ok" });
+  } catch (e) {
+    res.status(500).json({ message: "Unexpected error" });
   }
-
-  res.status(200).json({ message: "ok" });
 }
 
 async function search(req, res) {
-  const keyword = req.query.q;
-  const type = req.query.type;
-  const { currentUser } = res.locals;
+  try {
+    const keyword = req.query.q;
+    const type = req.query.type;
+    const { currentUser } = res.locals;
 
-  const { data, error } = await searchMessages({ userId: currentUser.sub, keyword, type });
-  if (error) {
-    return res.status(400).json(error);
+    const { data, error } = await searchMessages({ userId: currentUser.sub, keyword, type });
+    if (error) {
+      return res.status(400).json(error);
+    }
+    return res.status(200).json(data);
+  } catch (e) {
+    res.status(500).json({ message: "Unexpected error" });
   }
-  return res.status(200).json(data);
 }
 
 export default getMessageRoutes;
