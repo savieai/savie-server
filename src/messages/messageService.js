@@ -63,31 +63,36 @@ export async function createMessage({
 }
 
 export async function searchMessages({ userId, keyword, type }) {
-  if (!keyword) {
-    return [];
-  }
+  keyword = keyword?.split(" ").join("+");
 
-  keyword = keyword.split(" ").join("+");
   let searchColumn = "text_content";
-  let table = "messages";
+  let query;
 
   switch (type) {
     case "image":
     case "file":
+      query = supabase
+        .from("attachments")
+        .select("id, message_id, name, created_at, attachment_type, messages!inner(user_id)")
+        .match({ "messages.user_id": userId, attachment_type: type });
+
       searchColumn = "name";
-      table = "attachments";
       break;
     case "link":
-      table = "links";
+      query = supabase
+        .from("links")
+        .select("id, url, message_id, created_at, messages!inner(user_id)")
+        .eq("messages.user_id", userId);
+
       searchColumn = "url";
       break;
+    default:
+      query = supabase.from("messages").select().eq("user_id", userId);
   }
 
-  let query = supabase.from(table).select();
-  if (type === "image" || type === "file") {
-    query.eq("attachment_type", type);
+  if (keyword) {
+    query.ilike(searchColumn, `%${keyword}%`);
   }
-  query.textSearch(searchColumn, keyword);
 
   const { data, error } = await query;
   return { data, error };
