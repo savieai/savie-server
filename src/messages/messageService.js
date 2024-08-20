@@ -4,7 +4,9 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SEC
 export async function getMessages(userId) {
   const { data, error } = await supabase
     .from("messages")
-    .select(`*, links(url), attachments(attachment_type, name, signed_url)`)
+    .select(
+      `*, links(url), attachments(attachment_type, name, signed_url), voice_message:voice_messages(*)`,
+    )
     .eq("user_id", userId);
 
   return { data, error };
@@ -12,24 +14,20 @@ export async function getMessages(userId) {
 
 export async function createMessage({
   userId,
+  temp_id,
   text_content,
   file_attachments,
   images,
-  voice_message_url,
+  voice_message,
 }) {
   let links = extractLinks(text_content);
-  const { signedUrl, error } = await generatePublicVoiceMessageUrl(voice_message_url);
-  if (error) {
-    return { error };
-  }
 
-  const { data, error: messageError } = await supabase
+  const { data: message, error: messageError } = await supabase
     .from("messages")
     .upsert({
       user_id: userId,
-      text_content: text_content,
-      voice_message_url: voice_message_url,
-      voice_message_url_signed: signedUrl,
+      text_content,
+      temp_id,
     })
     .select("id")
     .single();
@@ -38,7 +36,35 @@ export async function createMessage({
     return { error: messageError };
   }
 
-  const messageId = data.id;
+  const messageId = message.id;
+
+  if (voice_message && voice_message.url) {
+    const { signedUrl, error } = await generatePublicVoiceMessageUrl(voice_message?.url);
+    if (error) {
+      return { error };
+    }
+
+    let peaks;
+    try {
+      peaks = JSON.parse(voice_message.peaks);
+    } catch (e) {
+      return { error: { status: 500, statusText: "Cannot parse peaks array" } };
+    }
+
+    const { error: voiceDataErr } = await supabase.from("voice_messages").insert({
+      message_id: messageId,
+      signed_url: signedUrl,
+      name: voice_message.name,
+      url: voice_message.url,
+      duration: voice_message.duration,
+      peaks,
+    });
+
+    if (voiceDataErr) {
+      return res.status(500).json(voiceDataErr);
+    }
+  }
+
   const linksData = transformLinks({ messageId, links });
   let attachmentsData = mergeAttachments({ messageId, images, file_attachments });
   let signingError;
@@ -59,7 +85,8 @@ export async function createMessage({
       error: attachmentsError,
     };
 
-  return { messageId };
+  const { data, error } = await getMessage({ messageId });
+  return { data, error };
 }
 
 export async function updateMessage({ userId, newContent, messageId }) {
@@ -252,4 +279,16 @@ async function messageOwnership({ messageId, userId }) {
 async function deleteStorageFiles({ bucket, files }) {
   const { error } = supabase.storage.from(bucket).remove(files);
   return { error };
+}
+
+async function getMessage({ messageId }) {
+  const { data, error } = await supabase
+    .from("messages")
+    .select(
+      "*, links(url), attachments(name, signed_url, attachment_type), voice_message:voice_messages(name, url, signed_url, peaks, duration)",
+    )
+    .eq("id", messageId)
+    .maybeSingle();
+
+  return { data, error };
 }

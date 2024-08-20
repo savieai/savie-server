@@ -36,22 +36,24 @@ async function create(req, res) {
   try {
     const text_content = req.body.text_content;
     const file_attachments = req.body.file_attachments;
+    const voice_message = req.body.voice_message;
     const images = req.body.images;
-    const voice_message_url = req.body.voice_message_url;
+    const temp_id = req.body.temp_id;
     const { currentUser } = res.locals;
 
-    const { error } = await createMessage({
+    const { error, data } = await createMessage({
       userId: currentUser.sub,
       text_content,
       file_attachments,
       images,
-      voice_message_url,
+      voice_message,
+      temp_id,
     });
     if (error) {
       return res.status(400).json(error);
     }
 
-    res.status(200).json({ message: "ok" });
+    res.status(200).json(data);
   } catch (e) {
     res.status(500).json({ message: "Unexpected error" });
   }
