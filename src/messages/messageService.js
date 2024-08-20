@@ -62,6 +62,69 @@ export async function createMessage({
   return { messageId };
 }
 
+export async function updateMessage({ userId, newContent, messageId }) {
+  const { data: message, error: messageError } = await supabase
+    .from("messages")
+    .select()
+    .match({ id: messageId, user_id: userId })
+    .maybeSingle();
+
+  if (!message) {
+    return { error: { status: 400, statusText: "No message found or violates ownership" } };
+  }
+  if (messageError) {
+    return { error: messageError };
+  }
+
+  const deletingLinksError = await deleteLinks({ messageId });
+  if (deletingLinksError) {
+    return { error: deletingLinksError };
+  }
+
+  let links = extractLinks(newContent);
+  const linksData = transformLinks({ messageId, links });
+
+  const { data, error } = await supabase
+    .from("messages")
+    .update({ text_content: newContent })
+    .eq("id", messageId)
+    .select();
+
+  if (error) {
+    return { error };
+  }
+  const { error: linksError } = await supabase.from("links").insert(linksData);
+  if (linksError) return { error: linksError };
+
+  return { data };
+}
+
+export async function deleteMessage({ userId, messageId }) {
+  const { data: messageData, error: ownershipError } = await messageOwnership({
+    userId,
+    messageId,
+  });
+
+  if (ownershipError) {
+    return { error: ownershipError };
+  }
+
+  const { data, error } = await supabase.from("messages").delete().eq("id", messageId).select();
+  if (error) {
+    return { error };
+  }
+  // delete attachments
+  if (messageData.attachments) {
+    const files = messageData.attachments.map((attachment) => attachment.name);
+    await deleteStorageFiles({ bucket: "message_attachments", files });
+  }
+  if (messageData.voice_message_url) {
+    await supabase.storage.from("voice_messages").remove([messageData.voice_message_url]);
+  }
+
+  return { data };
+}
+
 export async function searchMessages({ userId, keyword, type }) {
   keyword = keyword?.split(" ").join("+");
 
@@ -163,4 +226,30 @@ async function generatePublicVoiceMessageUrl(
     return { error };
   }
   return { signedUrl: data.signedUrl };
+}
+
+async function deleteLinks({ messageId }) {
+  const { error } = await supabase.from("links").delete().eq("message_id", messageId);
+  return error;
+}
+
+async function messageOwnership({ messageId, userId }) {
+  const { data, error } = await supabase
+    .from("messages")
+    .select("*, attachments(*)")
+    .match({ id: messageId, user_id: userId })
+    .maybeSingle();
+
+  if (!data) {
+    return { error: { status: 400, statusText: "No message found or violates ownership" } };
+  }
+  if (error) {
+    return { error };
+  }
+  return { data };
+}
+
+async function deleteStorageFiles({ bucket, files }) {
+  const { error } = supabase.storage.from(bucket).remove(files);
+  return { error };
 }
