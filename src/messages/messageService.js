@@ -1,15 +1,39 @@
 import { createClient } from "@supabase/supabase-js";
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
 
-export async function getMessages(userId) {
-  const { data, error } = await supabase
+const getPagination = (page, size) => {
+  const from = (page - 1) * size; // 0 based indexing
+  const to = from + size - 1; // supabase range is inclusive
+  return { from, to };
+};
+
+export async function getMessages({ userId, page = 1, pageSize = 10 }) {
+  const { from, to } = getPagination(page, pageSize);
+  const { data, count, error } = await supabase
     .from("messages")
     .select(
       `*, links(url), attachments(attachment_type, name, signed_url), voice_message:voice_messages(*)`,
+      { count: "exact" },
     )
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .range(from, to);
 
-  return { data, error };
+  return {
+    data: {
+      messages: data,
+      pagination: {
+        current_page: page,
+        page_size: pageSize,
+        total_pages: (() => {
+          const safeCount = count ?? 0;
+          const safePageSize = pageSize > 0 ? pageSize : 1;
+          return Math.ceil(safeCount / safePageSize);
+        })(),
+      },
+    },
+    error,
+  };
 }
 
 export async function createMessage({
@@ -152,9 +176,10 @@ export async function deleteMessage({ userId, messageId }) {
   return { data };
 }
 
-export async function searchMessages({ userId, keyword, type }) {
-  keyword = keyword?.split(" ").join("+");
+export async function searchMessages({ userId, keyword, type, page = 1, pageSize = 10 }) {
+  const { from, to } = getPagination(page, pageSize);
 
+  // keyword = keyword?.split(" ").join("+");
   let searchColumn = "text_content";
   let query;
 
@@ -163,7 +188,9 @@ export async function searchMessages({ userId, keyword, type }) {
     case "file":
       query = supabase
         .from("attachments")
-        .select("id, message_id, name, created_at, attachment_type, messages!inner(user_id)")
+        .select("id, message_id, name, created_at, attachment_type, messages!inner(user_id)", {
+          count: "exact",
+        })
         .match({ "messages.user_id": userId, attachment_type: type });
 
       searchColumn = "name";
@@ -171,7 +198,7 @@ export async function searchMessages({ userId, keyword, type }) {
     case "link":
       query = supabase
         .from("links")
-        .select("id, url, message_id, created_at, messages!inner(user_id)")
+        .select("id, url, message_id, created_at, messages!inner(user_id)", { count: "exact" })
         .eq("messages.user_id", userId);
 
       searchColumn = "url";
@@ -179,21 +206,40 @@ export async function searchMessages({ userId, keyword, type }) {
     case "voice":
       query = supabase
         .from("voice_messages")
-        .select("id, name, message_id, created_at, messages!inner(user_id)")
+        .select("id, name, message_id, created_at, messages!inner(user_id)", { count: "exact" })
         .eq("messages.user_id", userId);
 
-      searchColumn = "name"
+      searchColumn = "name";
       break;
     default:
-      query = supabase.from("messages").select().eq("user_id", userId);
+      query = supabase.from("messages").select("*", { count: "exact" }).eq("user_id", userId);
   }
+
+  query.order("created_at", { ascending: false });
 
   if (keyword) {
     query.ilike(searchColumn, `%${keyword}%`);
   }
 
-  const { data, error } = await query;
-  return { data, error };
+  query.range(from, to);
+
+  const { data, count, error } = await query;
+
+  return {
+    data: {
+      messages: data,
+      pagination: {
+        current_page: page,
+        page_size: pageSize,
+        total_pages: (() => {
+          const safeCount = count ?? 0;
+          const safePageSize = pageSize > 0 ? pageSize : 1;
+          return Math.ceil(safeCount / safePageSize);
+        })(),
+      },
+    },
+    error,
+  };
 }
 
 function extractLinks(text) {

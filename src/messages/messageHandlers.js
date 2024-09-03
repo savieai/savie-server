@@ -20,8 +20,14 @@ function getMessageRoutes() {
 async function index(req, res) {
   try {
     const { currentUser } = res.locals;
+    const { page, page_size } = req.query;
 
-    const { data, error } = await getMessages(currentUser.sub);
+    const { data, error } = await getMessages({
+      userId: currentUser.sub,
+      page: page ? parseInt(page) : undefined,
+      pageSize: page_size ? parseInt(page_size) : undefined,
+    });
+
     if (error) {
       return res.status(400).json(error);
     }
@@ -107,8 +113,16 @@ async function search(req, res) {
     const keyword = req.query.q;
     const type = req.query.type;
     const { currentUser } = res.locals;
+    const { page, page_size } = req.query;
 
-    const { data, error } = await searchMessages({ userId: currentUser.sub, keyword, type });
+    const { data, error } = await searchMessages({
+      userId: currentUser.sub,
+      keyword,
+      type,
+      page: page ? parseInt(page) : undefined,
+      pageSize: page ? parseInt(page_size) : undefined,
+    });
+
     if (error) {
       return res.status(400).json(error);
     }
