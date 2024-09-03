@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { query } from "../db.js";
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
 
 const getPagination = (page, size) => {
@@ -7,7 +8,57 @@ const getPagination = (page, size) => {
   return { from, to };
 };
 
-export async function getMessages({ userId, page = 1, pageSize = 10 }) {
+async function findRowNumber({ message_id, userId }) {
+  const error = { status: 400, statusText: "Database error when finding message row number" };
+  const q = `
+    WITH ranked_table AS (
+      SELECT
+        id,
+        user_id,
+        created_at,
+        RANK() OVER (
+          PARTITION BY user_id
+          ORDER BY created_at DESC
+        ) AS exact_row_num
+      FROM
+        messages
+      WHERE
+        user_id = $2
+    )
+    SELECT exact_row_num
+    FROM ranked_table
+    WHERE id = $1;
+    `;
+  try {
+    // will return 1 based indexing
+    const { rows } = await query(q, [message_id, userId]);
+    console.log({
+      rows: rows,
+    });
+    if (rows[0]?.exact_row_num) {
+      return {
+        row_number: rows[0].exact_row_num,
+      };
+    } else {
+      return { error };
+    }
+  } catch (e) {
+    console.log({ error: "Database error when finding message row number" });
+    return { error };
+  }
+}
+
+export async function getMessages({ userId, page = 1, pageSize = 10, message_id }) {
+  if (message_id) {
+    const { row_number, error } = await findRowNumber({ message_id, userId });
+
+    if (error) {
+      return { error };
+    }
+
+    page = Math.ceil(parseInt(row_number) / pageSize);
+  }
+
   const { from, to } = getPagination(page, pageSize);
   const { data, count, error } = await supabase
     .from("messages")

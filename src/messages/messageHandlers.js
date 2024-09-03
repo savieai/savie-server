@@ -20,12 +20,13 @@ function getMessageRoutes() {
 async function index(req, res) {
   try {
     const { currentUser } = res.locals;
-    const { page, page_size } = req.query;
+    const { page, page_size, message_id } = req.query;
 
     const { data, error } = await getMessages({
       userId: currentUser.sub,
       page: page ? parseInt(page) : undefined,
       pageSize: page_size ? parseInt(page_size) : undefined,
+      message_id
     });
 
     if (error) {
