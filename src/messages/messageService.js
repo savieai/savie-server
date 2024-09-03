@@ -176,6 +176,14 @@ export async function searchMessages({ userId, keyword, type }) {
 
       searchColumn = "url";
       break;
+    case "voice":
+      query = supabase
+        .from("voice_messages")
+        .select("id, name, message_id, created_at, messages!inner(user_id)")
+        .eq("messages.user_id", userId);
+
+      searchColumn = "name"
+      break;
     default:
       query = supabase.from("messages").select().eq("user_id", userId);
   }
