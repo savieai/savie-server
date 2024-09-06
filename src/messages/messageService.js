@@ -232,47 +232,36 @@ export async function searchMessages({ userId, keyword, type, page = 1, pageSize
 
   // keyword = keyword?.split(" ").join("+");
   let searchColumn = "text_content";
-  let query;
+
+  let query = supabase
+    .from("messages")
+    .select(`*, links(url), attachments(attachment_type, name), voice_messages(name)`, {
+      count: "exact",
+    })
+    .eq("user_id", userId);
 
   switch (type) {
     case "image":
     case "file":
-      query = supabase
-        .from("attachments")
-        .select("id, message_id, name, created_at, attachment_type, messages!inner(user_id)", {
-          count: "exact",
-        })
-        .match({ "messages.user_id": userId, attachment_type: type });
-
-      searchColumn = "name";
+      query = query.not("attachments", "is", null);
+      // .eq("attachments.attachment_type", type); // adding this would return only that specific type of attachments
+      searchColumn = "attachments.name";
       break;
     case "link":
-      query = supabase
-        .from("links")
-        .select("id, url, message_id, created_at, messages!inner(user_id)", { count: "exact" })
-        .eq("messages.user_id", userId);
-
-      searchColumn = "url";
+      query = query.not("links", "is", null);
+      searchColumn = "links.url";
       break;
     case "voice":
-      query = supabase
-        .from("voice_messages")
-        .select("id, name, message_id, created_at, messages!inner(user_id)", { count: "exact" })
-        .eq("messages.user_id", userId);
-
-      searchColumn = "name";
+      query = query.not("voice_messages", "is", null);
+      searchColumn = "voice_messages.name";
       break;
-    default:
-      query = supabase.from("messages").select("*", { count: "exact" }).eq("user_id", userId);
   }
-
-  query.order("created_at", { ascending: false });
 
   if (keyword) {
     query.ilike(searchColumn, `%${keyword}%`);
   }
 
-  query.range(from, to);
+  query = query.order("created_at", { ascending: false }).range(from, to);
 
   const { data, count, error } = await query;
 
