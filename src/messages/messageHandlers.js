@@ -26,7 +26,7 @@ async function index(req, res) {
       userId: currentUser.sub,
       page: page ? parseInt(page) : undefined,
       pageSize: page_size ? parseInt(page_size) : undefined,
-      message_id
+      message_id,
     });
 
     if (error) {
@@ -121,7 +121,7 @@ async function search(req, res) {
       keyword,
       type,
       page: page ? parseInt(page) : undefined,
-      pageSize: page ? parseInt(page_size) : undefined,
+      pageSize: page_size ? parseInt(page_size) : undefined,
     });
 
     if (error) {
