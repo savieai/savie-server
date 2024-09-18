@@ -97,12 +97,16 @@ export async function createMessage({
 }) {
   let links = extractLinks(text_content);
 
+  const attachment_types = [];
+  if (file_attachments.length > 0) attachment_types.push("file");
+  if (images.length > 0) attachment_types.push("image");
   const { data: message, error: messageError } = await supabase
     .from("messages")
     .upsert({
       user_id: userId,
       text_content,
       temp_id,
+      attachment_types,
     })
     .select("id")
     .single();
@@ -244,6 +248,7 @@ export async function searchMessages({ userId, keyword, type, page = 1, pageSize
     case "image":
     case "file":
       query = query.not("attachments", "is", null);
+      query = query.contains("attachment_types", [type]);
       // .eq("attachments.attachment_type", type); // adding this would return only that specific type of attachments
       searchColumn = "attachments.name";
       break;
@@ -263,7 +268,19 @@ export async function searchMessages({ userId, keyword, type, page = 1, pageSize
 
   query = query.order("created_at", { ascending: false }).range(from, to);
 
-  const { data, count, error } = await query;
+  const { data: matchingMessages, count, error: matchingMessagesErr } = await query;
+  if (matchingMessagesErr) {
+    return res.status(400).json({ error: matchingMessagesErr });
+  }
+
+  const { data, error } = await supabase
+    .from("messages")
+    .select(`*, links(*), attachments(*), voice_messages(*)`)
+    .in(
+      "id",
+      matchingMessages.map((msg) => msg.id),
+    )
+    .order("created_at", { ascending: false });
 
   return {
     data: {
