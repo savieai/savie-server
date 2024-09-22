@@ -98,8 +98,8 @@ export async function createMessage({
   let links = extractLinks(text_content);
 
   const attachment_types = [];
-  if (file_attachments.length > 0) attachment_types.push("file");
-  if (images.length > 0) attachment_types.push("image");
+  if (file_attachments?.length > 0) attachment_types.push("file");
+  if (images?.length > 0) attachment_types.push("image");
   const { data: message, error: messageError } = await supabase
     .from("messages")
     .upsert({
