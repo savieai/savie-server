@@ -62,10 +62,9 @@ export async function getMessages({ userId, page = 1, pageSize = 10, message_id 
   const { from, to } = getPagination(page, pageSize);
   const { data, count, error } = await supabase
     .from("messages")
-    .select(
-      `*, links(url), attachments(attachment_type, name, signed_url), voice_message:voice_messages(*)`,
-      { count: "exact" },
-    )
+    .select(`*, links(url), attachments(attachment_type, name, signed_url), voice_messages(*)`, {
+      count: "exact",
+    })
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .range(from, to);
@@ -249,7 +248,6 @@ export async function searchMessages({ userId, keyword, type, page = 1, pageSize
     case "file":
       query = query.not("attachments", "is", null);
       query = query.contains("attachment_types", [type]);
-      // .eq("attachments.attachment_type", type); // adding this would return only that specific type of attachments
       searchColumn = "attachments.name";
       break;
     case "link":
