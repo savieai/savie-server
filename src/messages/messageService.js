@@ -62,7 +62,7 @@ export async function getMessages({ userId, page = 1, pageSize = 10, message_id 
   const { from, to } = getPagination(page, pageSize);
   const { data, count, error } = await supabase
     .from("messages")
-    .select(`*, links(url), attachments(attachment_type, name, signed_url), voice_messages(*)`, {
+    .select(`*, links(*), attachments(*), voice_messages(*)`, {
       count: "exact",
     })
     .eq("user_id", userId)
@@ -393,9 +393,7 @@ async function deleteStorageFiles({ bucket, files }) {
 async function getMessage({ messageId }) {
   const { data, error } = await supabase
     .from("messages")
-    .select(
-      "*, links(url), attachments(name, signed_url, attachment_type), voice_message:voice_messages(name, url, signed_url, peaks, duration)",
-    )
+    .select("*, links(*), attachments(*), voice_messages(*)")
     .eq("id", messageId)
     .maybeSingle();
 
