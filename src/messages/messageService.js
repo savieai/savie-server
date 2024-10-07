@@ -1,15 +1,89 @@
 import { createClient } from "@supabase/supabase-js";
+import { query } from "../db.js";
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
 
-export async function getMessages(userId) {
-  const { data, error } = await supabase
-    .from("messages")
-    .select(
-      `*, links(url), attachments(attachment_type, name, signed_url), voice_message:voice_messages(*)`,
-    )
-    .eq("user_id", userId);
+const getPagination = (page, size) => {
+  const from = (page - 1) * size; // 0 based indexing
+  const to = from + size - 1; // supabase range is inclusive
+  return { from, to };
+};
 
-  return { data, error };
+async function findRowNumber({ message_id, userId }) {
+  const error = { status: 400, statusText: "Database error when finding message row number" };
+  const q = `
+    WITH ranked_table AS (
+      SELECT
+        id,
+        user_id,
+        created_at,
+        RANK() OVER (
+          PARTITION BY user_id
+          ORDER BY created_at DESC
+        ) AS exact_row_num
+      FROM
+        messages
+      WHERE
+        user_id = $2
+    )
+    SELECT exact_row_num
+    FROM ranked_table
+    WHERE id = $1;
+    `;
+  try {
+    // will return 1 based indexing
+    const { rows } = await query(q, [message_id, userId]);
+    console.log({
+      rows: rows,
+    });
+    if (rows[0]?.exact_row_num) {
+      return {
+        row_number: rows[0].exact_row_num,
+      };
+    } else {
+      return { error };
+    }
+  } catch (e) {
+    console.log({ error: "Database error when finding message row number" });
+    return { error };
+  }
+}
+
+export async function getMessages({ userId, page = 1, pageSize = 10, message_id }) {
+  if (message_id) {
+    const { row_number, error } = await findRowNumber({ message_id, userId });
+
+    if (error) {
+      return { error };
+    }
+
+    page = Math.ceil(parseInt(row_number) / pageSize);
+  }
+
+  const { from, to } = getPagination(page, pageSize);
+  const { data, count, error } = await supabase
+    .from("messages")
+    .select(`*, links(*), attachments(*), voice_messages(*)`, {
+      count: "exact",
+    })
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .range(from, to);
+
+  return {
+    data: {
+      messages: data,
+      pagination: {
+        current_page: page,
+        page_size: pageSize,
+        total_pages: (() => {
+          const safeCount = count ?? 0;
+          const safePageSize = pageSize > 0 ? pageSize : 1;
+          return Math.ceil(safeCount / safePageSize);
+        })(),
+      },
+    },
+    error,
+  };
 }
 
 export async function createMessage({
@@ -22,12 +96,16 @@ export async function createMessage({
 }) {
   let links = extractLinks(text_content);
 
+  const attachment_types = [];
+  if (file_attachments?.length > 0) attachment_types.push("file");
+  if (images?.length > 0) attachment_types.push("image");
   const { data: message, error: messageError } = await supabase
     .from("messages")
     .upsert({
       user_id: userId,
       text_content,
       temp_id,
+      attachment_types,
     })
     .select("id")
     .single();
@@ -152,40 +230,71 @@ export async function deleteMessage({ userId, messageId }) {
   return { data };
 }
 
-export async function searchMessages({ userId, keyword, type }) {
-  keyword = keyword?.split(" ").join("+");
+export async function searchMessages({ userId, keyword, type, page = 1, pageSize = 10 }) {
+  const { from, to } = getPagination(page, pageSize);
 
+  // keyword = keyword?.split(" ").join("+");
   let searchColumn = "text_content";
-  let query;
+
+  let query = supabase
+    .from("messages")
+    .select(`*, links(url), attachments(attachment_type, name), voice_messages(name)`, {
+      count: "exact",
+    })
+    .eq("user_id", userId);
 
   switch (type) {
     case "image":
     case "file":
-      query = supabase
-        .from("attachments")
-        .select("id, message_id, name, created_at, attachment_type, messages!inner(user_id)")
-        .match({ "messages.user_id": userId, attachment_type: type });
-
-      searchColumn = "name";
+      query = query.not("attachments", "is", null);
+      query = query.contains("attachment_types", [type]);
+      searchColumn = "attachments.name";
       break;
     case "link":
-      query = supabase
-        .from("links")
-        .select("id, url, message_id, created_at, messages!inner(user_id)")
-        .eq("messages.user_id", userId);
-
-      searchColumn = "url";
+      query = query.not("links", "is", null);
+      searchColumn = "links.url";
       break;
-    default:
-      query = supabase.from("messages").select().eq("user_id", userId);
+    case "voice":
+      query = query.not("voice_messages", "is", null);
+      searchColumn = "voice_messages.name";
+      break;
   }
 
   if (keyword) {
     query.ilike(searchColumn, `%${keyword}%`);
   }
 
-  const { data, error } = await query;
-  return { data, error };
+  query = query.order("created_at", { ascending: false }).range(from, to);
+
+  const { data: matchingMessages, count, error: matchingMessagesErr } = await query;
+  if (matchingMessagesErr) {
+    return res.status(400).json({ error: matchingMessagesErr });
+  }
+
+  const { data, error } = await supabase
+    .from("messages")
+    .select(`*, links(*), attachments(*), voice_messages(*)`)
+    .in(
+      "id",
+      matchingMessages.map((msg) => msg.id),
+    )
+    .order("created_at", { ascending: false });
+
+  return {
+    data: {
+      messages: data,
+      pagination: {
+        current_page: page,
+        page_size: pageSize,
+        total_pages: (() => {
+          const safeCount = count ?? 0;
+          const safePageSize = pageSize > 0 ? pageSize : 1;
+          return Math.ceil(safeCount / safePageSize);
+        })(),
+      },
+    },
+    error,
+  };
 }
 
 function extractLinks(text) {
@@ -284,9 +393,7 @@ async function deleteStorageFiles({ bucket, files }) {
 async function getMessage({ messageId }) {
   const { data, error } = await supabase
     .from("messages")
-    .select(
-      "*, links(url), attachments(name, signed_url, attachment_type), voice_message:voice_messages(name, url, signed_url, peaks, duration)",
-    )
+    .select("*, links(*), attachments(*), voice_messages(*)")
     .eq("id", messageId)
     .maybeSingle();
 

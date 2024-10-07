@@ -20,13 +20,20 @@ function getMessageRoutes() {
 async function index(req, res) {
   try {
     const { currentUser } = res.locals;
+    const { page, page_size, message_id } = req.query;
 
-    const { data, error } = await getMessages(currentUser.sub);
+    const { data, error } = await getMessages({
+      userId: currentUser.sub,
+      page: page ? parseInt(page) : undefined,
+      pageSize: page_size ? parseInt(page_size) : undefined,
+      message_id,
+    });
+
     if (error) {
       return res.status(400).json(error);
     }
 
-    res.status(200).json(data);
+    res.status(200).json({ data });
   } catch (e) {
     res.status(500).json({ message: "Unexpected error" });
   }
@@ -34,11 +41,7 @@ async function index(req, res) {
 
 async function create(req, res) {
   try {
-    const text_content = req.body.text_content;
-    const file_attachments = req.body.file_attachments;
-    const voice_message = req.body.voice_message;
-    const images = req.body.images;
-    const temp_id = req.body.temp_id;
+    const { text_content, file_attachments, images, voice_message, temp_id } = req.body;
     const { currentUser } = res.locals;
 
     const { error, data } = await createMessage({
@@ -55,7 +58,7 @@ async function create(req, res) {
 
     res.status(200).json(data);
   } catch (e) {
-    res.status(500).json({ message: "Unexpected error" });
+    res.status(500).json({ message: "Unexpected error " + e });
   }
 }
 
@@ -107,12 +110,20 @@ async function search(req, res) {
     const keyword = req.query.q;
     const type = req.query.type;
     const { currentUser } = res.locals;
+    const { page, page_size } = req.query;
 
-    const { data, error } = await searchMessages({ userId: currentUser.sub, keyword, type });
+    const { data, error } = await searchMessages({
+      userId: currentUser.sub,
+      keyword,
+      type,
+      page: page ? parseInt(page) : undefined,
+      pageSize: page_size ? parseInt(page_size) : undefined,
+    });
+
     if (error) {
       return res.status(400).json(error);
     }
-    return res.status(200).json(data);
+    return res.status(200).json({ data });
   } catch (e) {
     res.status(500).json({ message: "Unexpected error" });
   }
