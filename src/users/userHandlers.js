@@ -49,7 +49,8 @@ async function update(req, res) {
 
 async function deleteUser(req, res) {
   try {
-    const userId = req.params.id;
+    const { currentUser } = res.locals;
+    const userId = currentUser.sub;
     const { data, error } = deleteAuthUser(userId);
 
     if (error) {
