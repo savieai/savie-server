@@ -51,12 +51,12 @@ async function deleteUser(req, res) {
   try {
     const { currentUser } = res.locals;
     const userId = currentUser.sub;
-    const { data, error } = deleteAuthUser(userId);
+    const { error } = deleteAuthUser(userId);
 
     if (error) {
       return res.status(400).json(error);
     }
-    return res.json(data);
+    return res.json({ data: { status: 204, statusText: "Deleted Successfully" } });
   } catch (e) {
     res.status(500).json({ message: "Unexpected error" });
   }

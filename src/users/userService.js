@@ -10,8 +10,8 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SEC
 const adminAuthClient = supabase.auth.admin;
 
 export async function deleteAuthUser(userId) {
-  const { data, error } = await adminAuthClient.deleteUser(userId);
-  return { data, error };
+  const { error } = await adminAuthClient.deleteUser(userId);
+  return { error };
 }
 
 export async function getUser(userId) {
