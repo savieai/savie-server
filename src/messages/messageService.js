@@ -139,7 +139,7 @@ export async function createMessage({
     });
 
     if (voiceDataErr) {
-      return res.status(500).json(voiceDataErr);
+      return { error: { status: 500, statusText: "Cannot create voice message" } };
     }
   }
 
@@ -268,7 +268,7 @@ export async function searchMessages({ userId, keyword, type, page = 1, pageSize
 
   const { data: matchingMessages, count, error: matchingMessagesErr } = await query;
   if (matchingMessagesErr) {
-    return res.status(400).json({ error: matchingMessagesErr });
+    return { error: matchingMessagesErr };
   }
 
   const { data, error } = await supabase
