@@ -51,7 +51,8 @@ async function deleteUser(req, res) {
   try {
     const { currentUser } = res.locals;
     const userId = currentUser.sub;
-    const { error } = deleteAuthUser(userId);
+    const email = currentUser.email;
+    const { error } = deleteAuthUser({ userId, email });
 
     if (error) {
       return res.status(400).json(error);
