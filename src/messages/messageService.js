@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { query } from "../db.js";
+import { textConversions } from "../utils/deltaPlain.js";
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
 
 const getPagination = (page, size) => {
@@ -89,11 +90,13 @@ export async function getMessages({ userId, page = 1, pageSize = 10, message_id 
 export async function createMessage({
   userId,
   temp_id,
-  text_content,
+  text_content: textContent,
   file_attachments,
   images,
   voice_message,
+  delta_content: deltaContent,
 }) {
+  const { text_content, delta_content } = textConversions({ textContent, deltaContent });
   let links = extractLinks(text_content);
 
   const attachment_types = [];
@@ -104,6 +107,7 @@ export async function createMessage({
     .upsert({
       user_id: userId,
       text_content,
+      delta_content,
       temp_id,
       attachment_types,
     })
@@ -167,7 +171,7 @@ export async function createMessage({
   return { data, error };
 }
 
-export async function updateMessage({ userId, newContent, messageId }) {
+export async function updateMessage({ userId, newContent, messageId, newDeltaContent }) {
   const { data: message, error: messageError } = await supabase
     .from("messages")
     .select()
@@ -186,12 +190,17 @@ export async function updateMessage({ userId, newContent, messageId }) {
     return { error: deletingLinksError };
   }
 
-  let links = extractLinks(newContent);
+  const { text_content, delta_content } = textConversions({
+    textContent: newContent,
+    deltaContent: newDeltaContent,
+  });
+
+  let links = extractLinks(text_content);
   const linksData = transformLinks({ messageId, links });
 
   const { data, error } = await supabase
     .from("messages")
-    .update({ text_content: newContent })
+    .update({ text_content: text_content, delta_content: delta_content })
     .eq("id", messageId)
     .select();
 

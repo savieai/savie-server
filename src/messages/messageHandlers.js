@@ -41,12 +41,14 @@ async function index(req, res) {
 
 async function create(req, res) {
   try {
-    const { text_content, file_attachments, images, voice_message, temp_id } = req.body;
+    const { text_content, delta_content, file_attachments, images, voice_message, temp_id } =
+      req.body;
     const { currentUser } = res.locals;
 
     const { error, data } = await createMessage({
       userId: currentUser.sub,
       text_content,
+      delta_content,
       file_attachments,
       images,
       voice_message,
@@ -66,17 +68,23 @@ async function update(req, res) {
   try {
     const { currentUser } = res.locals;
     const newContent = req.body.text_content;
+    const newDeltaContent = req.body.delta_content;
     const messageId = req.params.id;
 
     if (!messageId) {
       return res.status(400).json({ statusText: "messageId is required in params" });
     }
 
-    if (!newContent) {
+    if (!newContent && !newDeltaContent) {
       return res.status(200).json({ message: "Nothing to update" });
     }
 
-    const { data, error } = await updateMessage({ newContent, userId: currentUser.sub, messageId });
+    const { data, error } = await updateMessage({
+      newContent,
+      userId: currentUser.sub,
+      messageId,
+      newDeltaContent,
+    });
     if (error) {
       return res.status(400).json(error);
     }
