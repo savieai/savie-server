@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { query } from "../db.js";
 import { textConversions } from "../utils/deltaPlain.js";
+import { transformLinks, extractLinks } from "../utils/links.js";
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
 
 const getPagination = (page, size) => {
@@ -96,8 +97,7 @@ export async function createMessage({
   voice_message,
   delta_content: deltaContent,
 }) {
-  const { text_content, delta_content } = textConversions({ textContent, deltaContent });
-  let links = extractLinks(text_content);
+  const { text_content, delta_content, links } = textConversions({ textContent, deltaContent });
 
   const attachment_types = [];
   if (file_attachments?.length > 0) attachment_types.push("file");
@@ -190,12 +190,11 @@ export async function updateMessage({ userId, newContent, messageId, newDeltaCon
     return { error: deletingLinksError };
   }
 
-  const { text_content, delta_content } = textConversions({
+  const { text_content, delta_content, links } = textConversions({
     textContent: newContent,
     deltaContent: newDeltaContent,
   });
 
-  let links = extractLinks(text_content);
   const linksData = transformLinks({ messageId, links });
 
   const { data, error } = await supabase
@@ -304,18 +303,6 @@ export async function searchMessages({ userId, keyword, type, page = 1, pageSize
     },
     error,
   };
-}
-
-function extractLinks(text) {
-  const linkRegex = /\b(?:https?:\/\/)?(?:www\.)?(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:\/[^\s]*)?/g;
-  return text?.match(linkRegex) || [];
-}
-
-function transformLinks({ links, messageId }) {
-  return links.map((link) => ({
-    url: link,
-    message_id: messageId,
-  }));
 }
 
 function mergeAttachments({ messageId, images = [], file_attachments = [] }) {
