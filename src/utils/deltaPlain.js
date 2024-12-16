@@ -14,7 +14,7 @@ function deltaToPlainText(delta) {
   }, "");
 }
 
-function plainToDelta(text) {
+export function plainToDelta(text) {
   const linkRegex = /\b(?:https?:\/\/)?(?:www\.)?(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:\/[^\s]*)?/g;
   const ops = [];
   let lastIndex = 0;
