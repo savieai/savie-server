@@ -1,5 +1,6 @@
 // setup.js
 import fs from 'fs';
+import dotenv from 'dotenv';
 
 // Load env file based on NODE_ENV
 const envFile = process.env.NODE_ENV === 'production' 
@@ -8,10 +9,10 @@ const envFile = process.env.NODE_ENV === 'production'
 
 if (fs.existsSync(envFile)) {
   console.log(`Loading environment from ${envFile}`);
-  require('dotenv').config({ path: envFile });
+  dotenv.config({ path: envFile });
 } else {
   console.log('Using default .env file');
-  require('dotenv').config();
+  dotenv.config();
 }
 
 // Continue with normal server startup
