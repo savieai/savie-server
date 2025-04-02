@@ -33,12 +33,15 @@ const upload = multer({ storage: storage });
 // Enhance text endpoint
 router.post('/enhance', async (req, res) => {
   try {
-    const { content } = req.body;
+    const { content, format } = req.body;
     const { currentUser } = res.locals;
     
     if (!content) {
       return res.status(400).json({ error: 'Content is required' });
     }
+    
+    // Check if the format is Quill Delta
+    const isQuillDelta = format === 'delta';
     
     // Check rate limits
     const today = new Date().toISOString().split('T')[0];
@@ -58,8 +61,8 @@ router.post('/enhance', async (req, res) => {
       });
     }
     
-    // Enhance text
-    const enhanced = await enhanceText(content);
+    // Enhance text with format awareness
+    const enhanced = await enhanceText(content, isQuillDelta);
     
     // Track usage
     await supabase.from('ai_usage').insert({
