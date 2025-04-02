@@ -33,7 +33,7 @@ const upload = multer({ storage: storage });
 // Enhance text endpoint
 router.post('/enhance', async (req, res) => {
   try {
-    const { content, format } = req.body;
+    const { content, format, message_id } = req.body;
     const { currentUser } = res.locals;
     
     if (!content) {
@@ -63,6 +63,30 @@ router.post('/enhance', async (req, res) => {
     
     // Enhance text with format awareness
     const enhanced = await enhanceText(content, isQuillDelta);
+    
+    // If message_id is provided, store the enhanced version in the database
+    if (message_id) {
+      const updateData = {
+        enhanced_with_ai: true
+      };
+      
+      if (isQuillDelta) {
+        updateData.enhanced_delta_content = enhanced.enhanced;
+      } else {
+        updateData.enhanced_text_content = enhanced.enhanced;
+      }
+      
+      const { error: updateError } = await supabase
+        .from('messages')
+        .update(updateData)
+        .eq('id', message_id)
+        .eq('user_id', currentUser.sub);
+        
+      if (updateError) {
+        console.error('Error updating message with enhanced content:', updateError);
+        // Continue with the response even if update fails
+      }
+    }
     
     // Track usage
     await supabase.from('ai_usage').insert({
@@ -145,6 +169,7 @@ router.post('/extract-tasks', async (req, res) => {
 router.post('/transcribe', upload.single('file'), async (req, res) => {
   try {
     const file = req.file;
+    const { message_id } = req.body;
     const { currentUser } = res.locals;
     
     if (!file) {
@@ -170,6 +195,33 @@ router.post('/transcribe', upload.single('file'), async (req, res) => {
     
     // Transcribe audio
     const { transcription } = await transcribeAudio(file.path, currentUser.sub);
+    
+    // If message_id is provided, store the transcription in the database
+    if (message_id) {
+      // Check if there's a voice message associated with this message
+      const { data: voiceMessage, error: voiceMessageError } = await supabase
+        .from('voice_messages')
+        .select('*')
+        .eq('message_id', message_id)
+        .maybeSingle();
+      
+      if (voiceMessageError) {
+        console.error('Error finding voice message:', voiceMessageError);
+      } else if (voiceMessage) {
+        // Update the voice message with the transcription
+        const { error: updateError } = await supabase
+          .from('voice_messages')
+          .update({ transcription_text: transcription })
+          .eq('message_id', message_id);
+          
+        if (updateError) {
+          console.error('Error updating voice message with transcription:', updateError);
+        }
+      } else {
+        // No voice message found for this message_id
+        console.warn(`No voice message found for message_id: ${message_id}`);
+      }
+    }
     
     // Clean up temp file
     fs.unlinkSync(file.path);
