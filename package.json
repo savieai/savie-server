@@ -8,7 +8,9 @@
     "dev": "NODE_ENV=development nodemon setup.js",
     "start": "NODE_ENV=production node setup.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "test:api": "node scripts/test-api.js"
+    "test:api": "node scripts/test-api.js",
+    "test:task-extraction": "node scripts/test-task-extraction.js",
+    "test:simulate": "node scripts/test-task-extraction-simulate.js"
   },
   "keywords": [],
   "author": "",

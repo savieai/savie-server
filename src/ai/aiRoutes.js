@@ -158,7 +158,22 @@ router.post('/extract-tasks', async (req, res) => {
         .eq('id', message_id);
     }
     
-    return res.json({ tasks });
+    // Check if user has an active Google Calendar connection
+    const { data: connections, error: connError } = await supabase
+      .from('service_connections')
+      .select('*')
+      .eq('user_id', currentUser.sub)
+      .eq('provider', 'google')
+      .eq('is_active', true);
+    
+    // Set calendar_connected to true if any active Google connection exists
+    // This matches the logic in hasServiceConnection function for calendar service
+    const calendar_connected = connections && connections.length > 0;
+    
+    return res.json({ 
+      tasks,
+      calendar_connected
+    });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: error.message });

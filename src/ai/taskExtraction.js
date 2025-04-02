@@ -24,6 +24,27 @@ If no tasks are found, return an empty array.
  * 
  * @param {string} text The text to extract tasks from
  * @returns {Array} Array of tasks
+ * 
+ * Note: When this function is called from the /api/ai/extract-tasks endpoint,
+ * the response will include:
+ * - tasks: Array of extracted tasks with details
+ * - calendar_connected: Boolean indicating if the user has an active Google Calendar connection
+ * 
+ * Example response:
+ * {
+ *   "tasks": [
+ *     {
+ *       "title": "Meeting with John",
+ *       "type": "calendar",
+ *       "details": {
+ *         "start_time": "2023-06-15T14:00:00Z",
+ *         "location": "Office"
+ *       },
+ *       "people": ["John"]
+ *     }
+ *   ],
+ *   "calendar_connected": true
+ * }
  */
 export async function extractTasks(text) {
   try {

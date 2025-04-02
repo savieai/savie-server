@@ -1,0 +1,14 @@
+feat: Add calendar connection status to task extraction API
+
+This commit adds a new `calendar_connected` boolean field to the `/api/ai/extract-tasks` endpoint response.
+The field indicates whether the user has an active Google Calendar connection, allowing the frontend
+to show appropriate UI elements when calendar tasks are detected.
+
+Changes:
+- Added Google Calendar connectivity check to the task extraction endpoint
+- Added `calendar_connected` boolean to the API response
+- Updated documentation with the new field information
+- Added testing tools for verifying functionality
+
+This change maintains backward compatibility as it only adds a new field without changing
+existing response fields or behavior. 

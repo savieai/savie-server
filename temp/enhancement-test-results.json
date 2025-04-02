@@ -1,0 +1,111 @@
+{
+  "deltaTest": {
+    "original": {
+      "ops": [
+        {
+          "insert": "Shopping List:",
+          "attributes": {
+            "bold": true
+          }
+        },
+        {
+          "insert": "\n"
+        },
+        {
+          "insert": "Buy milk",
+          "attributes": {
+            "list": "bullet"
+          }
+        },
+        {
+          "insert": "\n"
+        },
+        {
+          "insert": "get eggs from store",
+          "attributes": {
+            "list": "bullet"
+          }
+        },
+        {
+          "insert": "\n"
+        },
+        {
+          "insert": "pickup dry cleaning tomorrow",
+          "attributes": {
+            "list": "bullet"
+          }
+        },
+        {
+          "insert": "\n"
+        },
+        {
+          "insert": "call John about the meeting",
+          "attributes": {
+            "list": "bullet"
+          }
+        },
+        {
+          "insert": "\n"
+        }
+      ]
+    },
+    "enhanced": {
+      "ops": [
+        {
+          "insert": "Shopping List:",
+          "attributes": {
+            "bold": true
+          }
+        },
+        {
+          "insert": "\n"
+        },
+        {
+          "insert": "Buy milk",
+          "attributes": {
+            "list": "bullet"
+          }
+        },
+        {
+          "insert": "\n"
+        },
+        {
+          "insert": "Get eggs from the s",
+          "attributes": {
+            "list": "bullet"
+          }
+        },
+        {
+          "insert": "t"
+        },
+        {
+          "insert": "ore\nPick up dry cleaning tom",
+          "attributes": {
+            "list": "bullet"
+          }
+        },
+        {
+          "insert": "o"
+        },
+        {
+          "insert": "rrow\nCall John about the me",
+          "attributes": {
+            "list": "bullet"
+          }
+        },
+        {
+          "insert": "e"
+        },
+        {
+          "insert": "ting\n"
+        }
+      ]
+    },
+    "plainTextBefore": "Shopping List:\nBuy milk\nget eggs from store\npickup dry cleaning tomorrow\ncall John about the meeting\n",
+    "plainTextAfter": "Shopping List:\nBuy milk\nGet eggs from the store\nPick up dry cleaning tomorrow\nCall John about the meeting\n"
+  },
+  "textTest": {
+    "original": "Shopping List:\n- Buy milk\n- get eggs from store\n- pickup dry cleaning tomorrow\n- call John about the meeting",
+    "enhanced": "Shopping List:\n- Buy milk\n- Get eggs from the store\n- Pick up dry cleaning tomorrow\n- Call John about the meeting"
+  }
+}
