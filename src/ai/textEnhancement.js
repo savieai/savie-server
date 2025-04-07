@@ -20,6 +20,11 @@ export async function enhanceText(content, isQuillDelta = false) {
   try {
     if (!isQuillDelta) {
       // Original plain text implementation
+      if (!content || typeof content !== 'string' || content.trim() === '') {
+        console.error('Error enhancing text: Empty or invalid plain text content provided');
+        throw new Error('Content is empty or invalid');
+      }
+
       const response = await openai.chat.completions.create({
         model: process.env.AI_DEFAULT_MODEL || "gpt-4o-mini",
         messages: [
@@ -36,10 +41,49 @@ export async function enhanceText(content, isQuillDelta = false) {
       };
     } else {
       // Handle Quill Delta format
-      let delta = typeof content === 'string' ? JSON.parse(content) : content;
+      let delta;
+      
+      // Parse content if it's a string
+      if (typeof content === 'string') {
+        try {
+          console.log('Parsing Delta JSON from string');
+          delta = JSON.parse(content);
+        } catch (parseError) {
+          console.error('Error parsing Delta JSON:', parseError);
+          throw new Error('Invalid Delta format: Could not parse JSON');
+        }
+      } else {
+        delta = content;
+      }
+      
+      // Validate delta structure
+      if (!delta || typeof delta !== 'object') {
+        console.error('Error enhancing text: Delta is not an object', delta);
+        throw new Error('Invalid Delta format: Not a valid object');
+      }
+      
+      if (!delta.ops || !Array.isArray(delta.ops)) {
+        console.error('Error enhancing text: Delta missing ops array', delta);
+        throw new Error('Invalid Delta format: Missing ops array');
+      }
+      
+      if (delta.ops.length === 0) {
+        console.error('Error enhancing text: Delta has empty ops array', delta);
+        throw new Error('Invalid Delta format: Empty ops array');
+      }
+      
+      console.log('Processing Quill Delta format:', JSON.stringify(delta, null, 2).substring(0, 200) + '...');
       
       // Extract plain text and formatting info from Delta
       const { plainText, formatMap, lineBreaks } = analyzeQuillDelta(delta);
+      
+      // Validate extracted text
+      if (!plainText || plainText.trim() === '') {
+        console.error('Error enhancing text: No text content extracted from Delta', delta);
+        throw new Error('No text content found in Delta to enhance');
+      }
+      
+      console.log('Extracted plain text from Delta (first 100 chars):', plainText.substring(0, 100));
       
       // Enhance the extracted text
       const response = await openai.chat.completions.create({
@@ -52,6 +96,7 @@ export async function enhanceText(content, isQuillDelta = false) {
       });
       
       const enhancedText = response.choices[0].message.content;
+      console.log('Received enhanced text from OpenAI (first 100 chars):', enhancedText.substring(0, 100));
       
       // Reapply formatting while preserving line breaks
       const enhancedDelta = reconstructQuillDelta(enhancedText, formatMap, lineBreaks);
@@ -75,11 +120,18 @@ function analyzeQuillDelta(delta) {
   const lineBreaks = [];
   let currentPosition = 0;
   
+  // First additional validation
   if (!delta.ops) {
+    console.error('analyzeQuillDelta: Delta missing ops array');
     return { plainText, formatMap, lineBreaks };
   }
   
-  delta.ops.forEach(op => {
+  // Track if we've found any actual text content
+  let hasTextContent = false;
+  
+  delta.ops.forEach((op, index) => {
+    console.log(`Processing op[${index}]:`, JSON.stringify(op).substring(0, 100));
+    
     if (typeof op.insert === 'string') {
       // Check if this is a line break
       if (op.insert === '\n') {
@@ -90,6 +142,11 @@ function analyzeQuillDelta(delta) {
         plainText += '\n';
         currentPosition += 1;
       } else {
+        // Found actual text content
+        if (op.insert.trim() !== '') {
+          hasTextContent = true;
+        }
+        
         // Handle normal text
         plainText += op.insert;
         
@@ -115,6 +172,10 @@ function analyzeQuillDelta(delta) {
       currentPosition += 1;
     }
   });
+  
+  if (!hasTextContent && plainText.trim() === '') {
+    console.error('analyzeQuillDelta: No actual text content found in Delta');
+  }
   
   return { plainText, formatMap, lineBreaks };
 }

@@ -10,7 +10,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "test:api": "node scripts/test-api.js",
     "test:task-extraction": "node scripts/test-task-extraction.js",
-    "test:simulate": "node scripts/test-task-extraction-simulate.js"
+    "test:simulate": "node scripts/test-task-extraction-simulate.js",
+    "test:todo-delta": "node scripts/test-todo-delta-enhancement.js",
+    "test:direct-delta": "node scripts/test-direct-enhancement.js"
   },
   "keywords": [],
   "author": "",
