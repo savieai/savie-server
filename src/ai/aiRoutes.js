@@ -33,7 +33,7 @@ const upload = multer({ storage: storage });
 // Enhance text endpoint
 router.post('/enhance', async (req, res) => {
   try {
-    const { content, format, message_id } = req.body;
+    const { content, format, message_id, force = false } = req.body;
     const { currentUser } = res.locals;
     
     if (!content) {
@@ -42,6 +42,23 @@ router.post('/enhance', async (req, res) => {
     
     // Check if the format is Quill Delta
     const isQuillDelta = format === 'delta';
+    
+    // If message_id is provided, check if it's already enhanced unless force flag is true
+    if (message_id && !force) {
+      const { data: message } = await supabase
+        .from('messages')
+        .select('enhanced_with_ai')
+        .eq('id', message_id)
+        .eq('user_id', currentUser.sub)
+        .maybeSingle();
+      
+      if (message && message.enhanced_with_ai) {
+        return res.status(400).json({ 
+          error: 'Message already enhanced',
+          message: 'This message is already enhanced. To re-enhance, revert to original first or use force=true parameter.'
+        });
+      }
+    }
     
     // Check rate limits
     const today = new Date().toISOString().split('T')[0];

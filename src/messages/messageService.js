@@ -2,11 +2,13 @@ import { createClient } from "@supabase/supabase-js";
 import { query } from "../db.js";
 import { textConversions } from "../utils/deltaPlain.js";
 import { transformLinks, extractLinks } from "../utils/links.js";
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
+import { supabase } from "../db.js";
+import { extractTextFromDelta } from "../utils/extractorsFromText.js";
 
 const getPagination = (page, size) => {
-  const from = (page - 1) * size; // 0 based indexing
-  const to = from + size - 1; // supabase range is inclusive
+  const limit = size ? +size : 10;
+  const from = page ? (page - 1) * limit : 0;
+  const to = page ? from + limit - 1 : limit - 1;
   return { from, to };
 };
 
@@ -171,7 +173,7 @@ export async function createMessage({
   return { data, error };
 }
 
-export async function updateMessage({ userId, newContent, messageId, newDeltaContent }) {
+export async function updateMessage({ userId, newContent, messageId, newDeltaContent, updateTarget = "original" }) {
   const { data: message, error: messageError } = await supabase
     .from("messages")
     .select()
@@ -197,9 +199,26 @@ export async function updateMessage({ userId, newContent, messageId, newDeltaCon
 
   const linksData = transformLinks({ messageId, links });
 
+  let updateData = {};
+  
+  // Update the appropriate fields based on updateTarget
+  if (updateTarget === "enhanced" && message.enhanced_with_ai) {
+    // Update enhanced content
+    updateData = {
+      enhanced_text_content: text_content,
+      enhanced_delta_content: delta_content
+    };
+  } else {
+    // Update original content
+    updateData = {
+      text_content: text_content,
+      delta_content: delta_content
+    };
+  }
+
   const { data, error } = await supabase
     .from("messages")
-    .update({ text_content: text_content, delta_content: delta_content })
+    .update(updateData)
     .eq("id", messageId)
     .select();
 
@@ -210,6 +229,56 @@ export async function updateMessage({ userId, newContent, messageId, newDeltaCon
   if (linksError) return { error: linksError };
 
   return { data };
+}
+
+/**
+ * Revert a message to its original content
+ * @param {string} userId - The user ID
+ * @param {string} messageId - The message ID to revert
+ * @returns {Object} The updated message data or error
+ */
+export async function revertMessage({ userId, messageId }) {
+  // First check if message exists and belongs to user
+  const { data: message, error: messageError } = await supabase
+    .from("messages")
+    .select()
+    .match({ id: messageId, user_id: userId })
+    .maybeSingle();
+
+  if (!message) {
+    return { error: { status: 400, statusText: "No message found or violates ownership" } };
+  }
+  if (messageError) {
+    return { error: messageError };
+  }
+
+  // Check if message is actually enhanced
+  if (!message.enhanced_with_ai) {
+    return { error: { 
+      status: 400, 
+      statusText: "Message is not enhanced and cannot be reverted" 
+    }};
+  }
+
+  // Update the message to revert enhanced content
+  const { data, error } = await supabase
+    .from("messages")
+    .update({
+      enhanced_with_ai: false,
+      enhanced_text_content: null,
+      enhanced_delta_content: null
+    })
+    .eq("id", messageId)
+    .select();
+
+  if (error) {
+    return { error };
+  }
+
+  return { 
+    data, 
+    message: "Message successfully reverted to original content" 
+  };
 }
 
 export async function deleteMessage({ userId, messageId }) {

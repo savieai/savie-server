@@ -1,0 +1,132 @@
+{
+  "results": {
+    "todoList": {
+      "success": false
+    },
+    "emptyTodoList": {
+      "success": false
+    },
+    "brokenDelta": {
+      "success": false
+    },
+    "checklistDelta": {
+      "success": false
+    }
+  },
+  "samples": {
+    "todoListDelta": {
+      "ops": [
+        {
+          "insert": "My To-Do List:",
+          "attributes": {
+            "bold": true
+          }
+        },
+        {
+          "insert": "\n"
+        },
+        {
+          "insert": "Buy groceries",
+          "attributes": {
+            "list": "bullet"
+          }
+        },
+        {
+          "insert": "\n"
+        },
+        {
+          "insert": "finish report for work",
+          "attributes": {
+            "list": "bullet"
+          }
+        },
+        {
+          "insert": "\n"
+        },
+        {
+          "insert": "call mom about the birthday party",
+          "attributes": {
+            "list": "bullet"
+          }
+        },
+        {
+          "insert": "\n"
+        },
+        {
+          "insert": "schedule dentist appointment",
+          "attributes": {
+            "list": "bullet"
+          }
+        },
+        {
+          "insert": "\n"
+        }
+      ]
+    },
+    "emptyTodoListDelta": {
+      "ops": [
+        {
+          "insert": "\n",
+          "attributes": {
+            "list": "bullet"
+          }
+        },
+        {
+          "insert": "\n",
+          "attributes": {
+            "list": "bullet"
+          }
+        },
+        {
+          "insert": "\n",
+          "attributes": {
+            "list": "bullet"
+          }
+        }
+      ]
+    },
+    "brokenDelta": {
+      "noOps": "This is not a valid Delta"
+    },
+    "checklistDelta": {
+      "ops": [
+        {
+          "insert": "Checklist:",
+          "attributes": {
+            "bold": true
+          }
+        },
+        {
+          "insert": "\n"
+        },
+        {
+          "insert": "Complete project proposal",
+          "attributes": {
+            "list": "checked"
+          }
+        },
+        {
+          "insert": "\n"
+        },
+        {
+          "insert": "review team feedback",
+          "attributes": {
+            "list": "unchecked"
+          }
+        },
+        {
+          "insert": "\n"
+        },
+        {
+          "insert": "prepare presentation slides",
+          "attributes": {
+            "list": "unchecked"
+          }
+        },
+        {
+          "insert": "\n"
+        }
+      ]
+    }
+  }
+}

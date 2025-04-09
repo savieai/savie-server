@@ -1,0 +1,346 @@
+{
+  "results": {
+    "todoList": {
+      "success": true,
+      "result": {
+        "enhanced": {
+          "ops": [
+            {
+              "insert": "My To-Do List:",
+              "attributes": {
+                "bold": true
+              }
+            },
+            {
+              "insert": "\n"
+            },
+            {
+              "insert": "Buy groceries",
+              "attributes": {
+                "list": "bullet"
+              }
+            },
+            {
+              "insert": "\n"
+            },
+            {
+              "insert": "Finish report for work",
+              "attributes": {
+                "list": "bullet"
+              }
+            },
+            {
+              "insert": "\n"
+            },
+            {
+              "insert": "Call mom regarding the birthday p",
+              "attributes": {
+                "list": "bullet"
+              }
+            },
+            {
+              "insert": "a"
+            },
+            {
+              "insert": "rty",
+              "attributes": {
+                "list": "bullet"
+              }
+            },
+            {
+              "insert": "\n"
+            },
+            {
+              "insert": "Schedule dentist appoint",
+              "attributes": {
+                "list": "bullet"
+              }
+            },
+            {
+              "insert": "ment"
+            },
+            {
+              "insert": "\n"
+            },
+            {
+              "insert": "\n"
+            }
+          ]
+        },
+        "original": {
+          "ops": [
+            {
+              "insert": "My To-Do List:",
+              "attributes": {
+                "bold": true
+              }
+            },
+            {
+              "insert": "\n"
+            },
+            {
+              "insert": "Buy groceries",
+              "attributes": {
+                "list": "bullet"
+              }
+            },
+            {
+              "insert": "\n"
+            },
+            {
+              "insert": "finish report for work",
+              "attributes": {
+                "list": "bullet"
+              }
+            },
+            {
+              "insert": "\n"
+            },
+            {
+              "insert": "call mom about the birthday party",
+              "attributes": {
+                "list": "bullet"
+              }
+            },
+            {
+              "insert": "\n"
+            },
+            {
+              "insert": "schedule dentist appointment",
+              "attributes": {
+                "list": "bullet"
+              }
+            },
+            {
+              "insert": "\n"
+            }
+          ]
+        },
+        "format": "delta"
+      },
+      "originalText": "My To-Do List:\nBuy groceries\nfinish report for work\ncall mom about the birthday party\nschedule dentist appointment\n",
+      "enhancedText": "My To-Do List:\nBuy groceries\nFinish report for work\nCall mom regarding the birthday party\nSchedule dentist appointment\n\n",
+      "wasEnhanced": true,
+      "formattingPreserved": true
+    },
+    "emptyTodoList": {
+      "success": false,
+      "error": "Failed to enhance text: No text content found in Delta to enhance",
+      "expectedFailure": true
+    },
+    "brokenDelta": {
+      "success": false,
+      "error": "Failed to enhance text: Invalid Delta format: Missing ops array",
+      "expectedFailure": true
+    },
+    "checklistDelta": {
+      "success": true,
+      "result": {
+        "enhanced": {
+          "ops": [
+            {
+              "insert": "Checklist:",
+              "attributes": {
+                "bold": true
+              }
+            },
+            {
+              "insert": "\n"
+            },
+            {
+              "insert": "Complete project proposal",
+              "attributes": {
+                "list": "checked"
+              }
+            },
+            {
+              "insert": "\n"
+            },
+            {
+              "insert": "Review team feedback",
+              "attributes": {
+                "list": "unchecked"
+              }
+            },
+            {
+              "insert": "\n"
+            },
+            {
+              "insert": "Prepare presentation slides",
+              "attributes": {
+                "list": "unchecked"
+              }
+            },
+            {
+              "insert": "\n"
+            },
+            {
+              "insert": "\n"
+            }
+          ]
+        },
+        "original": {
+          "ops": [
+            {
+              "insert": "Checklist:",
+              "attributes": {
+                "bold": true
+              }
+            },
+            {
+              "insert": "\n"
+            },
+            {
+              "insert": "Complete project proposal",
+              "attributes": {
+                "list": "checked"
+              }
+            },
+            {
+              "insert": "\n"
+            },
+            {
+              "insert": "review team feedback",
+              "attributes": {
+                "list": "unchecked"
+              }
+            },
+            {
+              "insert": "\n"
+            },
+            {
+              "insert": "prepare presentation slides",
+              "attributes": {
+                "list": "unchecked"
+              }
+            },
+            {
+              "insert": "\n"
+            }
+          ]
+        },
+        "format": "delta"
+      },
+      "originalText": "Checklist:\nComplete project proposal\nreview team feedback\nprepare presentation slides\n",
+      "enhancedText": "Checklist:\nComplete project proposal\nReview team feedback\nPrepare presentation slides\n\n",
+      "wasEnhanced": true,
+      "formattingPreserved": true
+    }
+  },
+  "samples": {
+    "todoListDelta": {
+      "ops": [
+        {
+          "insert": "My To-Do List:",
+          "attributes": {
+            "bold": true
+          }
+        },
+        {
+          "insert": "\n"
+        },
+        {
+          "insert": "Buy groceries",
+          "attributes": {
+            "list": "bullet"
+          }
+        },
+        {
+          "insert": "\n"
+        },
+        {
+          "insert": "finish report for work",
+          "attributes": {
+            "list": "bullet"
+          }
+        },
+        {
+          "insert": "\n"
+        },
+        {
+          "insert": "call mom about the birthday party",
+          "attributes": {
+            "list": "bullet"
+          }
+        },
+        {
+          "insert": "\n"
+        },
+        {
+          "insert": "schedule dentist appointment",
+          "attributes": {
+            "list": "bullet"
+          }
+        },
+        {
+          "insert": "\n"
+        }
+      ]
+    },
+    "emptyTodoListDelta": {
+      "ops": [
+        {
+          "insert": "\n",
+          "attributes": {
+            "list": "bullet"
+          }
+        },
+        {
+          "insert": "\n",
+          "attributes": {
+            "list": "bullet"
+          }
+        },
+        {
+          "insert": "\n",
+          "attributes": {
+            "list": "bullet"
+          }
+        }
+      ]
+    },
+    "brokenDelta": {
+      "noOps": "This is not a valid Delta"
+    },
+    "checklistDelta": {
+      "ops": [
+        {
+          "insert": "Checklist:",
+          "attributes": {
+            "bold": true
+          }
+        },
+        {
+          "insert": "\n"
+        },
+        {
+          "insert": "Complete project proposal",
+          "attributes": {
+            "list": "checked"
+          }
+        },
+        {
+          "insert": "\n"
+        },
+        {
+          "insert": "review team feedback",
+          "attributes": {
+            "list": "unchecked"
+          }
+        },
+        {
+          "insert": "\n"
+        },
+        {
+          "insert": "prepare presentation slides",
+          "attributes": {
+            "list": "unchecked"
+          }
+        },
+        {
+          "insert": "\n"
+        }
+      ]
+    }
+  }
+}

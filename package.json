@@ -12,7 +12,8 @@
     "test:task-extraction": "node scripts/test-task-extraction.js",
     "test:simulate": "node scripts/test-task-extraction-simulate.js",
     "test:todo-delta": "node scripts/test-todo-delta-enhancement.js",
-    "test:direct-delta": "node scripts/test-direct-enhancement.js"
+    "test:direct-delta": "node scripts/test-direct-enhancement.js",
+    "test:enhanced-editing": "node scripts/test-enhanced-editing.js"
   },
   "keywords": [],
   "author": "",
