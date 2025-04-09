@@ -2,8 +2,13 @@ import { createClient } from "@supabase/supabase-js";
 import { query } from "../db.js";
 import { textConversions } from "../utils/deltaPlain.js";
 import { transformLinks, extractLinks } from "../utils/links.js";
-import { supabase } from "../db.js";
 import { extractTextFromDelta } from "../utils/extractorsFromText.js";
+
+// Create supabase client
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SECRET_KEY
+);
 
 const getPagination = (page, size) => {
   const limit = size ? +size : 10;
