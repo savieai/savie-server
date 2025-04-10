@@ -172,7 +172,7 @@ export async function createMessage({
   return { data, error };
 }
 
-export async function updateMessage({ userId, newContent, messageId, newDeltaContent }) {
+export async function updateMessage({ userId, newContent, messageId, newDeltaContent, updateTarget = "original" }) {
   const { data: message, error: messageError } = await supabase
     .from("messages")
     .select()
@@ -198,9 +198,26 @@ export async function updateMessage({ userId, newContent, messageId, newDeltaCon
 
   const linksData = transformLinks({ messageId, links });
 
+  let updateData = {};
+  
+  // Update the appropriate fields based on updateTarget
+  if (updateTarget === "enhanced" && message.enhanced_with_ai) {
+    // Update enhanced content
+    updateData = {
+      enhanced_text_content: text_content,
+      enhanced_delta_content: delta_content
+    };
+  } else {
+    // Update original content
+    updateData = {
+      text_content: text_content,
+      delta_content: delta_content
+    };
+  }
+
   const { data, error } = await supabase
     .from("messages")
-    .update({ text_content: text_content, delta_content: delta_content })
+    .update(updateData)
     .eq("id", messageId)
     .select();
 
@@ -395,4 +412,40 @@ async function getMessage({ messageId }) {
     .maybeSingle();
 
   return { data, error };
+}
+
+export async function revertMessage({ userId, messageId }) {
+  const { data: message, error: messageError } = await supabase
+    .from("messages")
+    .select()
+    .match({ id: messageId, user_id: userId })
+    .maybeSingle();
+
+  if (!message) {
+    return { error: { status: 400, statusText: "No message found or violates ownership" } };
+  }
+  if (messageError) {
+    return { error: messageError };
+  }
+
+  if (!message.enhanced_with_ai) {
+    return { message: "Message is not enhanced, nothing to revert" };
+  }
+
+  const { data, error } = await supabase
+    .from("messages")
+    .update({ 
+      enhanced_with_ai: false,
+      enhanced_text_content: null,
+      enhanced_delta_content: null
+    })
+    .eq("id", messageId)
+    .eq("user_id", userId)
+    .select();
+
+  if (error) {
+    return { error };
+  }
+
+  return { data, message: "Message reverted to original content" };
 }

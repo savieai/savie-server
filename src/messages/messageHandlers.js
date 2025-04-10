@@ -5,6 +5,7 @@ import {
   getMessages,
   searchMessages,
   updateMessage,
+  revertMessage,
 } from "./messageService.js";
 
 function getMessageRoutes() {
@@ -12,6 +13,7 @@ function getMessageRoutes() {
   router.get("/", index);
   router.post("/", create);
   router.patch("/:id", update);
+  router.post("/:id/revert", revert);
   router.get("/search", search);
   router.delete("/:id", destroy);
   return router;
@@ -69,6 +71,7 @@ async function update(req, res) {
     const { currentUser } = res.locals;
     const newContent = req.body.text_content;
     const newDeltaContent = req.body.delta_content;
+    const updateTarget = req.body.updateTarget || "original"; // Default to original
     const messageId = req.params.id;
 
     if (!messageId) {
@@ -84,6 +87,7 @@ async function update(req, res) {
       userId: currentUser.sub,
       messageId,
       newDeltaContent,
+      updateTarget
     });
     if (error) {
       return res.status(400).json(error);
@@ -132,6 +136,33 @@ async function search(req, res) {
       return res.status(400).json(error);
     }
     return res.status(200).json({ data });
+  } catch (e) {
+    res.status(500).json({ message: "Unexpected error" });
+  }
+}
+
+/**
+ * Revert a message from enhanced to original content
+ */
+async function revert(req, res) {
+  try {
+    const { currentUser } = res.locals;
+    const messageId = req.params.id;
+
+    if (!messageId) {
+      return res.status(400).json({ statusText: "messageId is required in params" });
+    }
+
+    const { data, error, message } = await revertMessage({
+      userId: currentUser.sub,
+      messageId
+    });
+
+    if (error) {
+      return res.status(400).json(error);
+    }
+
+    res.status(200).json({ data, message });
   } catch (e) {
     res.status(500).json({ message: "Unexpected error" });
   }

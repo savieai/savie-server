@@ -33,7 +33,7 @@ const upload = multer({ storage: storage });
 // Enhance text endpoint
 router.post('/enhance', async (req, res) => {
   try {
-    const { content, format, message_id } = req.body;
+    const { content, format, message_id, force = false } = req.body;
     const { currentUser } = res.locals;
     
     if (!content) {
@@ -59,6 +59,23 @@ router.post('/enhance', async (req, res) => {
         error: 'Rate limit exceeded',
         message: 'You have exceeded your daily limit for text enhancement'
       });
+    }
+    
+    // If message_id is provided, check if it's already enhanced unless force=true
+    if (message_id && !force) {
+      const { data: existingMessage } = await supabase
+        .from('messages')
+        .select('enhanced_with_ai')
+        .eq('id', message_id)
+        .eq('user_id', currentUser.sub)
+        .maybeSingle();
+      
+      if (existingMessage && existingMessage.enhanced_with_ai) {
+        return res.status(400).json({
+          error: 'Already enhanced',
+          message: 'This message has already been enhanced. Use force=true to override.'
+        });
+      }
     }
     
     // Enhance text with format awareness
