@@ -1,6 +1,6 @@
-# Savie Server
+# Savie Mobile Backend
 
-Backend server for Savie application. This repository contains the API endpoints and server-side functionality for the Savie note-taking and task management application.
+Backend server for Savie mobile application. This repository contains the API endpoints and server-side functionality for the Savie note-taking and task management mobile application.
 
 ## Features
 
@@ -27,6 +27,14 @@ SUPABASE_URL=your_supabase_url
 SUPABASE_SECRET_KEY=your_supabase_key
 OPENAI_API_KEY=your_openai_key
 ```
+
+## Deployment
+
+This repository is deployed to Heroku at https://savie-server-production-3fc812ac12c5.herokuapp.com/
+
+## Documentation
+
+See [PROJECT_DOCUMENTATION.md](PROJECT_DOCUMENTATION.md) for detailed information about the project structure and workflows.
 
 ## License
 
