@@ -6,30 +6,29 @@ Savie is a note-taking and task management application with both web and mobile 
 
 ## Repository Structure
 
-### `savie-server-main`
-- **Purpose**: Primary development environment and source of truth for the backend
+### `savie-mobile-backend` (this repository)
+- **Purpose**: Primary development environment for the mobile backend
 - **Content**: Contains all current API routes, services, and utilities
-- **Focus**: Mobile backend integration
+- **Focus**: Mobile application backend services
 - **Usage**: Active development, testing, and feature implementation
 
-### `savie-server-backup`
-- **Purpose**: Backup of previous versions of the codebase
-- **Content**: Historical code snapshots
-- **Usage**: Reference and rollback if needed
+### Archive/Reference Repositories (not active development)
+- `savie-server-backup`: Historical code snapshots for reference
+- `savie-server-main`: Legacy repository with older versions
 
 ### `heroku-deploy`
 - **Purpose**: Staging and production deployment files
 - **Content**: Optimized and configured files for Heroku deployment
-- **Usage**: Deploying to production environment
+- **Usage**: Previous deployment mechanism (now deprecated)
 
 ## Workflow Processes
 
 ### Local Development
 
-1. Make changes in `savie-server-main` directory
+1. Make changes in the `savie-mobile-backend` directory
 2. Test locally using:
    ```bash
-   cd savie-server-main
+   cd savie-mobile-backend
    npm run dev
    ```
 3. Verify functionality before pushing to GitHub
@@ -55,13 +54,9 @@ Savie is a note-taking and task management application with both web and mobile 
 
 ### Heroku Deployment
 
-1. After GitHub changes are finalized, push to Heroku:
+1. After GitHub changes are finalized, push directly to Heroku:
    ```bash
-   cd savie-server-main
-   # If pushing for the first time:
-   git remote add heroku https://git.heroku.com/savie-server-production.git
-   
-   # Push to Heroku:
+   # From savie-mobile-backend directory:
    git push heroku main
    ```
 2. For full redeployment:
@@ -95,10 +90,19 @@ Savie is a note-taking and task management application with both web and mobile 
 - **Request Format**:
   ```json
   {
-    "content": "Text to enhance",
-    "format": "delta"  // Optional, "plain" or "delta"
+    "content": {"ops": [...]},  // Delta object directly
+    "format": "delta"           // Required when sending Delta objects
   }
   ```
+  
+  OR for plain text:
+  ```json
+  {
+    "content": "Text to enhance",
+    "format": "plain"           // Optional, defaults to plain
+  }
+  ```
+  
 - **Response Format**:
   ```json
   {
@@ -124,8 +128,8 @@ Savie is a note-taking and task management application with both web and mobile 
 For text enhancement from mobile, ensure proper format:
 ```json
 {
-  "content": "Text content or stringified Delta object",
-  "format": "delta"  // Required when sending Delta objects
+  "content": {"ops": [...]},  // Delta object directly
+  "format": "delta"           // Required when sending Delta objects
 }
 ```
 
@@ -133,12 +137,12 @@ For text enhancement from mobile, ensure proper format:
 
 1. Clone repository:
    ```bash
-   git clone https://github.com/savieai/savie-server.git
+   git clone https://github.com/savieai/savie-server.git savie-mobile-backend
    ```
 
 2. Install dependencies:
    ```bash
-   cd savie-server
+   cd savie-mobile-backend
    npm install
    ```
 
@@ -160,7 +164,7 @@ For text enhancement from mobile, ensure proper format:
 
 1. **400/500 errors on text enhancement**:
    - Check JSON format for proper structure
-   - Ensure Delta format is properly stringified if using "format": "delta"
+   - Ensure Delta format is properly sent as an object when using "format": "delta"
    - Verify content is not empty
 
 2. **Authentication Issues**:
