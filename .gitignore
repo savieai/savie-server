@@ -9,4 +9,5 @@
 node_modules/
 
 # Temporary files
-temp/
+temp/*
+!temp/.gitkeep
