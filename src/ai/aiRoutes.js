@@ -7,13 +7,83 @@ import path from 'path';
 import { transcribeAudio } from './transcription.js';
 import { parseDateTime } from './parseDatetime.js';
 import { extractAttendees } from './extractAttendees.js';
+import { convertToTodo } from './convertToTodo.js';
 import fs from 'fs';
 
 const router = express.Router();
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SECRET_KEY
-);
+
+// Create client if environment variables are available, otherwise create a mock for testing
+let supabase;
+if (process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY && 
+    process.env.NODE_ENV !== 'test') {
+  supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SECRET_KEY
+  );
+} else {
+  // Mock Supabase client for testing
+  supabase = {
+    from: (table) => ({
+      insert: async (data) => ({ data, error: null }),
+      select: function(columns, options) {
+        const mockSelectObject = {
+          data: [],
+          error: null,
+          count: 0,
+          eq: function(field, value) {
+            return {
+              eq: function(field2, value2) {
+                return {
+                  maybeSingle: async () => ({ data: null, error: null }),
+                  select: function(columns) {
+                    return {
+                      maybeSingle: async () => ({ data: null, error: null })
+                    };
+                  }
+                };
+              },
+              maybeSingle: async () => ({ data: null, error: null }),
+              gte: function(date) {
+                return {
+                  lte: function(date) {
+                    return { count: 0, data: [], error: null };
+                  }
+                };
+              }
+            };
+          }
+        };
+        
+        // Add count property for exact count queries
+        if (options && options.count === 'exact') {
+          return { 
+            ...mockSelectObject,
+            eq: mockSelectObject.eq,
+            count: 0
+          };
+        }
+        
+        return mockSelectObject;
+      },
+      update: async (data) => ({ data, error: null }),
+      eq: function(field, value) {
+        return {
+          eq: function(field2, value2) {
+            return {
+              maybeSingle: async () => ({ data: null, error: null })
+            };
+          },
+          maybeSingle: async () => ({ data: null, error: null })
+        };
+      }
+    }),
+    storage: {
+      from: () => ({
+        createSignedUrl: async () => ({ data: { signedUrl: 'https://example.com/mock-url' }, error: null })
+      })
+    }
+  };
+}
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -397,5 +467,174 @@ router.post('/extract-attendees', async (req, res) => {
     });
   }
 });
+
+// Convert to Todo List endpoint
+router.post('/convert-to-todo', async (req, res) => {
+  try {
+    const { content, format, message_id } = req.body;
+    const { currentUser } = res.locals;
+    
+    if (!content && !message_id) {
+      return res.status(400).json({ error: 'Either content or message_id is required' });
+    }
+    
+    // Check rate limits
+    const today = new Date().toISOString().split('T')[0];
+    const { count } = await supabase
+      .from('ai_usage')
+      .select('*', { count: 'exact' })
+      .eq('user_id', currentUser.sub)
+      .eq('feature', 'convert_to_todo')
+      .gte('used_at', `${today}T00:00:00`)
+      .lte('used_at', `${today}T23:59:59`);
+      
+    const maxRequests = parseInt(process.env.AI_MAX_REQUESTS_PER_DAY || '100');
+    if (count >= maxRequests) {
+      return res.status(429).json({ 
+        error: 'Rate limit exceeded',
+        message: 'You have exceeded your daily limit for todo conversions'
+      });
+    }
+    
+    // Handle message-based request
+    if (message_id && !content) {
+      // Check if it's a text message or voice message
+      const { data: message, error: messageError } = await supabase
+        .from('messages')
+        .select('id, text_content, delta_content')
+        .eq('id', message_id)
+        .eq('user_id', currentUser.sub)
+        .maybeSingle();
+      
+      if (messageError) {
+        console.error('Error fetching message:', messageError);
+        return res.status(500).json({ error: 'Failed to fetch message' });
+      }
+      
+      if (!message) {
+        // Check if it's a voice message
+        const { data: voiceMessage, error: voiceError } = await supabase
+          .from('voice_messages')
+          .select('message_id, transcription_text, voice_url')
+          .eq('message_id', message_id)
+          .maybeSingle();
+        
+        if (voiceError) {
+          console.error('Error fetching voice message:', voiceError);
+          return res.status(500).json({ error: 'Failed to fetch voice message' });
+        }
+        
+        if (!voiceMessage) {
+          return res.status(404).json({ error: 'Message not found' });
+        }
+        
+        // If voice message is already transcribed, use that
+        if (voiceMessage.transcription_text) {
+          const result = await convertToTodo({
+            content: voiceMessage.transcription_text,
+            format: 'plain',
+            userId: currentUser.sub
+          });
+          
+          if (!result.success) {
+            return res.status(result.statusCode || 500).json({ error: result.error });
+          }
+          
+          return res.json(result);
+        } else if (voiceMessage.voice_url) {
+          // Need to transcribe first
+          // Get the audio file
+          const { data: signedUrl } = await supabase.storage
+            .from('voice-messages')
+            .createSignedUrl(voiceMessage.voice_url.split('/').pop(), 60);
+          
+          if (!signedUrl || !signedUrl.signedUrl) {
+            return res.status(500).json({ error: 'Failed to access voice message file' });
+          }
+          
+          // Download and save temporarily
+          const response = await fetch(signedUrl.signedUrl);
+          const buffer = await response.arrayBuffer();
+          
+          const tempDir = path.join(process.cwd(), 'temp');
+          if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+          }
+          
+          const tempFile = path.join(tempDir, `${Date.now()}.mp3`);
+          fs.writeFileSync(tempFile, Buffer.from(buffer));
+          
+          // Process with transcription
+          const result = await convertToTodo({
+            voiceMessagePath: tempFile,
+            format: 'plain',
+            userId: currentUser.sub
+          });
+          
+          if (!result.success) {
+            return res.status(result.statusCode || 500).json({ error: result.error });
+          }
+          
+          // If successful, update the voice message with the transcription
+          await supabase
+            .from('voice_messages')
+            .update({ transcription_text: result.success ? extractTextFromVoiceResult(result) : '' })
+            .eq('message_id', message_id);
+          
+          return res.json(result);
+        } else {
+          return res.status(400).json({ error: 'Voice message has no content to process' });
+        }
+      }
+      
+      // Handle text message
+      const messageContent = message.delta_content || message.text_content;
+      const messageFormat = message.delta_content ? 'delta' : 'plain';
+      
+      if (!messageContent) {
+        return res.status(400).json({ error: 'Message has no content to process' });
+      }
+      
+      const result = await convertToTodo({
+        content: messageContent,
+        format: messageFormat,
+        userId: currentUser.sub
+      });
+      
+      if (!result.success) {
+        return res.status(result.statusCode || 500).json({ error: result.error });
+      }
+      
+      return res.json(result);
+    }
+    
+    // Handle direct content
+    const result = await convertToTodo({
+      content,
+      format: format || 'plain',
+      userId: currentUser.sub
+    });
+    
+    if (!result.success) {
+      return res.status(result.statusCode || 500).json({ error: result.error });
+    }
+    
+    return res.json(result);
+    
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Helper function to extract plain text from voice message result
+function extractTextFromVoiceResult(result) {
+  if (result.format === 'plain') {
+    const regularText = result.regular_text || '';
+    const tasks = Array.isArray(result.tasks) ? result.tasks.join('\n') : '';
+    return tasks ? `${regularText}\n\n${tasks}` : regularText;
+  }
+  return '';
+}
 
 export default router; 

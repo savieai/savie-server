@@ -2642,3 +2642,99 @@ The backend architecture has been updated to support both web and mobile clients
 4. Implemented environment-specific configuration for development/production
 5. Updated OpenAI API calls to work with current models
 6. Added comprehensive test suite for all endpoints
+
+### AI Features
+
+#### POST /ai/convert-to-todo
+- **Purpose**: Convert note or voice message content into a structured to-do list
+- **Headers**: 
+  - `Authorization: Bearer jwt-token`
+- **Request Body Options**:
+  - Option 1: Direct content conversion
+    ```json
+    {
+      "content": "Pick up groceries tomorrow. I need milk, eggs, and bread. Also remember to call mom for her birthday.",
+      "format": "plain"  // or "delta" for Quill Delta format
+    }
+    ```
+  - Option 2: Convert from existing message
+    ```json
+    {
+      "message_id": "message-uuid"
+    }
+    ```
+- **Response Format (Success)** - 200 OK:
+  ```json
+  {
+    "success": true,
+    "tasks": [
+      "Pick up groceries tomorrow",
+      "Buy milk, eggs, and bread",
+      "Call mom for her birthday"
+    ],
+    "regular_text": "I need to go shopping.",
+    "format": "plain"
+  }
+  ```
+  
+  Or with Delta format:
+  ```json
+  {
+    "success": true,
+    "tasks": {
+      "ops": [
+        { "insert": "Pick up groceries tomorrow" },
+        { "insert": "\n", "attributes": { "list": "unchecked" } },
+        { "insert": "Buy milk, eggs, and bread" },
+        { "insert": "\n", "attributes": { "list": "unchecked" } },
+        { "insert": "Call mom for her birthday" },
+        { "insert": "\n", "attributes": { "list": "unchecked" } }
+      ]
+    },
+    "regular_text": {
+      "ops": [
+        { "insert": "I need to go shopping." },
+        { "insert": "\n" }
+      ]
+    },
+    "format": "delta"
+  }
+  ```
+- **Error Responses**:
+  - 400 Bad Request: Missing content
+    ```json
+    {
+      "error": "Either content or message_id is required"
+    }
+    ```
+  - 400 Bad Request: No valid content to process
+    ```json
+    {
+      "error": "No valid content to process"
+    }
+    ```
+  - 404 Not Found: Message not found
+    ```json
+    {
+      "error": "Message not found"
+    }
+    ```
+  - 429 Too Many Requests: Rate limit exceeded
+    ```json
+    {
+      "error": "Rate limit exceeded",
+      "message": "You have exceeded your daily limit for todo conversions"
+    }
+    ```
+  - 500 Internal Server Error: Processing error
+    ```json
+    {
+      "error": "Failed to convert to todo: [error details]"
+    }
+    ```
+- **Special Features**:
+  - Automatically transcribes voice messages if needed
+  - Handles both plain text and Quill Delta formats
+  - Intelligently separates tasks from regular text
+  - Returns tasks in a format suitable for immediate rendering as a checklist
+- **Rate Limits**: 100 conversions per day per user

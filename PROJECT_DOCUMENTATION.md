@@ -76,6 +76,7 @@ Savie is a note-taking and task management application with both web and mobile 
 - Speech-to-text transcription
 - Task extraction from notes
 - Date/time parsing
+- Convert to To-Do list (transforms notes/voice messages into structured to-do lists)
 
 ### User Management
 - Authentication
@@ -116,6 +117,38 @@ Savie is a note-taking and task management application with both web and mobile 
 - **Endpoint**: POST `/ai/transcribe`
 - **Purpose**: Transcribes audio files to text
 - **Request Format**: Multipart form with audio file
+
+### Convert to To-Do
+- **Endpoint**: POST `/ai/convert-to-todo`
+- **Purpose**: Transforms note or voice message content into a structured to-do list
+- **Request Format**:
+  ```json
+  {
+    "content": "Your note content here",
+    "format": "plain"  // or "delta" for Quill Delta format
+  }
+  ```
+  
+  OR using message_id:
+  ```json
+  {
+    "message_id": "existing-message-id"
+  }
+  ```
+  
+- **Response Format**:
+  ```json
+  {
+    "success": true,
+    "tasks": [
+      "Task 1",
+      "Task 2",
+      "Task 3"
+    ],
+    "regular_text": "Non-task content",
+    "format": "plain"  // or "delta"
+  }
+  ```
 
 ## Frontend Integration
 
