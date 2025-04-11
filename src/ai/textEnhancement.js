@@ -47,6 +47,18 @@ export async function enhanceText(content, isQuillDelta = false) {
         )
       );
       
+      // Enhanced detection: Count how many list items we have
+      let listItemCount = 0;
+      if (delta.ops) {
+        delta.ops.forEach(op => {
+          if (op.insert === '\n' && op.attributes && op.attributes.list) {
+            listItemCount++;
+          }
+        });
+      }
+      
+      console.log(`Detected formatted list: ${isFormattedList}, list item count: ${listItemCount}`);
+      
       // Extract plain text and formatting info from Delta
       const { plainText, formatMap, lineBreaks } = analyzeQuillDelta(delta);
       
@@ -64,8 +76,10 @@ export async function enhanceText(content, isQuillDelta = false) {
       
       // Reapply formatting while preserving line breaks
       let enhancedDelta;
-      if (isFormattedList) {
-        // Use modified approach for to-do and bullet lists to preserve formatting
+      
+      // Use specialized handling for lists with 2+ items to ensure formatting integrity
+      if (isFormattedList && listItemCount >= 1) {
+        console.log("Using specialized list formatting preservation");
         enhancedDelta = preserveListFormatting(delta, enhancedText);
       } else {
         // Standard approach for regular content
@@ -301,14 +315,30 @@ function preserveListFormatting(originalDelta, enhancedText) {
   // Extract the list formatting attributes from the original delta
   const listAttributes = [];
   let nonListOps = [];
+  let defaultListAttribute = null;
   
-  // First pass: collect formatting info
+  // Add debug logging
+  console.log("Original Delta:", JSON.stringify(originalDelta));
+  console.log("Enhanced Text:", enhancedText);
+  
+  // First pass: collect formatting info and find the dominant list type
   if (originalDelta.ops) {
-    originalDelta.ops.forEach((op) => {
+    // Count attribute types to determine the default
+    let checkedCount = 0;
+    let uncheckedCount = 0;
+    let bulletCount = 0;
+    
+    originalDelta.ops.forEach((op, index) => {
       if (typeof op.insert === 'string') {
         if (op.insert === '\n' && op.attributes && op.attributes.list) {
           // This is a list item line break (bullet, todo, etc)
           listAttributes.push(op.attributes);
+          console.log(`Found list attribute at index ${index}:`, op.attributes);
+          
+          // Count by type
+          if (op.attributes.list === 'checked') checkedCount++;
+          if (op.attributes.list === 'unchecked') uncheckedCount++;
+          if (op.attributes.list === 'bullet') bulletCount++;
         } else if (op.insert !== '\n') {
           // Collect non-list ops for additional formatting
           if (op.attributes) {
@@ -320,14 +350,35 @@ function preserveListFormatting(originalDelta, enhancedText) {
         }
       }
     });
+    
+    // Determine default list attribute for consistency
+    if (uncheckedCount >= checkedCount && uncheckedCount >= bulletCount) {
+      defaultListAttribute = { list: 'unchecked' };
+    } else if (bulletCount >= uncheckedCount && bulletCount >= checkedCount) {
+      defaultListAttribute = { list: 'bullet' };
+    } else if (checkedCount > 0) {
+      defaultListAttribute = { list: 'checked' };
+    }
+    
+    console.log("Default list attribute:", defaultListAttribute);
   }
+  
+  console.log(`Found ${listAttributes.length} list attributes`);
   
   // Split the enhanced text into lines
   const enhancedLines = enhancedText.split('\n');
+  console.log(`Enhanced text has ${enhancedLines.length} lines`);
+  
   const newDelta = { ops: [] };
   
   // Create new Delta with preserved list formatting
   enhancedLines.forEach((line, index) => {
+    // Skip empty lines at the beginning
+    if (index === 0 && !line.trim()) {
+      return;
+    }
+    
+    // Add the text content
     if (line) {
       // Check if we have any text formatting to apply to this line
       const matchingFormat = nonListOps.find(op => line.includes(op.text));
@@ -341,21 +392,65 @@ function preserveListFormatting(originalDelta, enhancedText) {
       }
     }
     
-    // Add line break with original list formatting if available
+    // Critical fix: Ensure list formatting is applied to all lines
+    // Each non-empty line should get a list attribute if available
     if (index < enhancedLines.length - 1 || enhancedText.endsWith('\n')) {
-      const attributeIndex = Math.min(index, listAttributes.length - 1);
-      if (attributeIndex >= 0 && listAttributes[attributeIndex]) {
-        // Apply original list formatting
-        newDelta.ops.push({ 
+      // Find appropriate list attribute - ensure we don't run out
+      let attributeToUse;
+      
+      if (listAttributes.length > 0) {
+        // If we have attributes, use them in order, wrapping around if needed
+        const attributeIndex = index % listAttributes.length;
+        attributeToUse = listAttributes[attributeIndex];
+      } else if (defaultListAttribute) {
+        // Fall back to default if we ran out
+        attributeToUse = defaultListAttribute;
+      }
+      
+      // Only apply list attributes to non-empty lines or the last line
+      if (attributeToUse && (line.trim() || index === enhancedLines.length - 1)) {
+        // Apply list formatting to this line
+        newDelta.ops.push({
           insert: '\n',
-          attributes: listAttributes[attributeIndex]
+          attributes: attributeToUse
         });
+        console.log(`Applied list attribute to line ${index}:`, attributeToUse);
       } else {
         // Regular line break
         newDelta.ops.push({ insert: '\n' });
+        console.log(`No list attribute for line ${index}`);
       }
     }
   });
   
+  // Final check: make sure we have at least one list attribute applied
+  const hasListAttributes = newDelta.ops.some(op => 
+    op.attributes && op.attributes.list
+  );
+  
+  if (!hasListAttributes && defaultListAttribute && newDelta.ops.length > 0) {
+    // No list attributes applied but we should have them - apply to all lines
+    console.log("No list attributes applied - fixing");
+    
+    const fixedDelta = { ops: [] };
+    
+    for (let i = 0; i < newDelta.ops.length; i++) {
+      const op = newDelta.ops[i];
+      
+      if (op.insert === '\n') {
+        // Apply default list attribute to all line breaks
+        fixedDelta.ops.push({
+          insert: '\n',
+          attributes: defaultListAttribute
+        });
+      } else {
+        fixedDelta.ops.push(op);
+      }
+    }
+    
+    return fixedDelta;
+  }
+  
+  console.log("Result Delta:", JSON.stringify(newDelta));
   return newDelta;
 } 
