@@ -311,7 +311,7 @@ function replaceTextInDelta(delta, newText) {
 }
 
 // Special function to preserve list formatting after enhancement
-function preserveListFormatting(originalDelta, enhancedText) {
+export function preserveListFormatting(originalDelta, enhancedText) {
   // Extract the list formatting attributes from the original delta
   const listAttributes = [];
   let nonListOps = [];
@@ -365,8 +365,9 @@ function preserveListFormatting(originalDelta, enhancedText) {
   
   console.log(`Found ${listAttributes.length} list attributes`);
   
-  // Split the enhanced text into lines
-  const enhancedLines = enhancedText.split('\n');
+  // Split the enhanced text into lines - trim the text to remove trailing newlines
+  const enhancedTextTrimmed = enhancedText.trimEnd();
+  const enhancedLines = enhancedTextTrimmed.split('\n');
   console.log(`Enhanced text has ${enhancedLines.length} lines`);
   
   const newDelta = { ops: [] };
@@ -379,7 +380,7 @@ function preserveListFormatting(originalDelta, enhancedText) {
     }
     
     // Add the text content
-    if (line) {
+    if (line.trim() || index < enhancedLines.length - 1) {
       // Check if we have any text formatting to apply to this line
       const matchingFormat = nonListOps.find(op => line.includes(op.text));
       if (matchingFormat) {
@@ -392,23 +393,25 @@ function preserveListFormatting(originalDelta, enhancedText) {
       }
     }
     
-    // Critical fix: Ensure list formatting is applied to all lines
-    // Each non-empty line should get a list attribute if available
-    if (index < enhancedLines.length - 1 || enhancedText.endsWith('\n')) {
+    // Critical fix: Only add list formatting to non-empty lines or lines that had content
+    // Each line should get a list attribute if available
+    if (index < enhancedLines.length - 1 || (enhancedText.endsWith('\n') && line.trim())) {
       // Find appropriate list attribute - ensure we don't run out
       let attributeToUse;
       
       if (listAttributes.length > 0) {
         // If we have attributes, use them in order, wrapping around if needed
-        const attributeIndex = index % listAttributes.length;
-        attributeToUse = listAttributes[attributeIndex];
-      } else if (defaultListAttribute) {
-        // Fall back to default if we ran out
+        // But only up to the number of valid content lines we had in the original
+        if (index < listAttributes.length) {
+          attributeToUse = listAttributes[index];
+        }
+      } else if (defaultListAttribute && line.trim()) {
+        // Fall back to default if we ran out, but only for non-empty lines
         attributeToUse = defaultListAttribute;
       }
       
-      // Only apply list attributes to non-empty lines or the last line
-      if (attributeToUse && (line.trim() || index === enhancedLines.length - 1)) {
+      // Only apply list attributes to non-empty lines
+      if (attributeToUse && line.trim()) {
         // Apply list formatting to this line
         newDelta.ops.push({
           insert: '\n',
@@ -423,32 +426,9 @@ function preserveListFormatting(originalDelta, enhancedText) {
     }
   });
   
-  // Final check: make sure we have at least one list attribute applied
-  const hasListAttributes = newDelta.ops.some(op => 
-    op.attributes && op.attributes.list
-  );
-  
-  if (!hasListAttributes && defaultListAttribute && newDelta.ops.length > 0) {
-    // No list attributes applied but we should have them - apply to all lines
-    console.log("No list attributes applied - fixing");
-    
-    const fixedDelta = { ops: [] };
-    
-    for (let i = 0; i < newDelta.ops.length; i++) {
-      const op = newDelta.ops[i];
-      
-      if (op.insert === '\n') {
-        // Apply default list attribute to all line breaks
-        fixedDelta.ops.push({
-          insert: '\n',
-          attributes: defaultListAttribute
-        });
-      } else {
-        fixedDelta.ops.push(op);
-      }
-    }
-    
-    return fixedDelta;
+  // Final check: Add trailing newline if original text ended with one
+  if (enhancedText.endsWith('\n') && !enhancedTextTrimmed.endsWith('\n')) {
+    newDelta.ops.push({ insert: '\n' });
   }
   
   console.log("Result Delta:", JSON.stringify(newDelta));
