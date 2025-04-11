@@ -38,6 +38,15 @@ export async function enhanceText(content, isQuillDelta = false) {
       // Handle Quill Delta format
       let delta = typeof content === 'string' ? JSON.parse(content) : content;
       
+      // Check if this is a to-do list or bullet list Delta (special handling)
+      const isFormattedList = delta.ops && delta.ops.some(op => 
+        op.attributes && (
+          op.attributes.list === 'checked' || 
+          op.attributes.list === 'unchecked' || 
+          op.attributes.list === 'bullet'
+        )
+      );
+      
       // Extract plain text and formatting info from Delta
       const { plainText, formatMap, lineBreaks } = analyzeQuillDelta(delta);
       
@@ -54,7 +63,14 @@ export async function enhanceText(content, isQuillDelta = false) {
       const enhancedText = response.choices[0].message.content;
       
       // Reapply formatting while preserving line breaks
-      const enhancedDelta = reconstructQuillDelta(enhancedText, formatMap, lineBreaks);
+      let enhancedDelta;
+      if (isFormattedList) {
+        // Use modified approach for to-do and bullet lists to preserve formatting
+        enhancedDelta = preserveListFormatting(delta, enhancedText);
+      } else {
+        // Standard approach for regular content
+        enhancedDelta = reconstructQuillDelta(enhancedText, formatMap, lineBreaks);
+      }
       
       return {
         enhanced: enhancedDelta,
@@ -272,6 +288,70 @@ function replaceTextInDelta(delta, newText) {
           attributes: lineBreak.attributes
         });
       } else {
+        newDelta.ops.push({ insert: '\n' });
+      }
+    }
+  });
+  
+  return newDelta;
+}
+
+// Special function to preserve list formatting after enhancement
+function preserveListFormatting(originalDelta, enhancedText) {
+  // Extract the list formatting attributes from the original delta
+  const listAttributes = [];
+  let nonListOps = [];
+  
+  // First pass: collect formatting info
+  if (originalDelta.ops) {
+    originalDelta.ops.forEach((op) => {
+      if (typeof op.insert === 'string') {
+        if (op.insert === '\n' && op.attributes && op.attributes.list) {
+          // This is a list item line break (bullet, todo, etc)
+          listAttributes.push(op.attributes);
+        } else if (op.insert !== '\n') {
+          // Collect non-list ops for additional formatting
+          if (op.attributes) {
+            nonListOps.push({
+              text: op.insert,
+              attributes: op.attributes
+            });
+          }
+        }
+      }
+    });
+  }
+  
+  // Split the enhanced text into lines
+  const enhancedLines = enhancedText.split('\n');
+  const newDelta = { ops: [] };
+  
+  // Create new Delta with preserved list formatting
+  enhancedLines.forEach((line, index) => {
+    if (line) {
+      // Check if we have any text formatting to apply to this line
+      const matchingFormat = nonListOps.find(op => line.includes(op.text));
+      if (matchingFormat) {
+        newDelta.ops.push({ 
+          insert: line,
+          attributes: matchingFormat.attributes
+        });
+      } else {
+        newDelta.ops.push({ insert: line });
+      }
+    }
+    
+    // Add line break with original list formatting if available
+    if (index < enhancedLines.length - 1 || enhancedText.endsWith('\n')) {
+      const attributeIndex = Math.min(index, listAttributes.length - 1);
+      if (attributeIndex >= 0 && listAttributes[attributeIndex]) {
+        // Apply original list formatting
+        newDelta.ops.push({ 
+          insert: '\n',
+          attributes: listAttributes[attributeIndex]
+        });
+      } else {
+        // Regular line break
         newDelta.ops.push({ insert: '\n' });
       }
     }

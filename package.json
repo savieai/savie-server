@@ -11,7 +11,8 @@
     "test:convert-todo": "node test-convert-todo.js",
     "test:convert-todo-direct": "node test-convert-todo-direct.js",
     "test:convert-todo-simple": "node test-convert-todo-simple.js",
-    "test:server": "node test-server.js"
+    "test:server": "node test-server.js",
+    "test:todo-enhancement": "node test-todo-enhancement-fix.js"
   },
   "keywords": [],
   "author": "",
