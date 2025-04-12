@@ -400,10 +400,13 @@ export function preserveListFormatting(originalDelta, enhancedText) {
       let attributeToUse;
       
       if (listAttributes.length > 0) {
-        // If we have attributes, use them in order, wrapping around if needed
-        // But only up to the number of valid content lines we had in the original
+        // Modified: Apply list attributes to all content lines, not just the ones with matching index
+        // Use the available attributes, and if we run out, use the default
         if (index < listAttributes.length) {
           attributeToUse = listAttributes[index];
+        } else if (defaultListAttribute && line.trim()) {
+          // If we have more lines than original attributes, use the default attribute type
+          attributeToUse = defaultListAttribute;
         }
       } else if (defaultListAttribute && line.trim()) {
         // Fall back to default if we ran out, but only for non-empty lines
