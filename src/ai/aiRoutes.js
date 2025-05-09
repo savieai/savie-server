@@ -151,6 +151,10 @@ router.post('/enhance', async (req, res) => {
     // Enhance text with format awareness
     const enhanced = await enhanceText(content, isQuillDelta);
     
+    // Add debug logs to understand the response format
+    console.log(`[DEBUG] Enhanced response format: ${typeof enhanced.enhanced}`);
+    console.log(`[DEBUG] Enhanced has 'ops' property: ${enhanced.enhanced && enhanced.enhanced.ops ? 'Yes' : 'No'}`);
+    
     // If message_id is provided, store the enhanced version in the database
     if (message_id) {
       const updateData = {
@@ -636,5 +640,50 @@ function extractTextFromVoiceResult(result) {
   }
   return '';
 }
+
+// Add debugging endpoint for testing Delta formatting
+router.post('/debug-delta', async (req, res) => {
+  try {
+    const { content } = req.body;
+    console.log('Debug Delta - Request content:', JSON.stringify(content, null, 2));
+    
+    // Import the function if not already available in this file
+    const { preserveListFormatting } = await import('./textEnhancement.js');
+    
+    // Simulate enhanced text (capitalize first letter of each line)
+    const plainText = content.ops
+      .map(op => typeof op.insert === 'string' ? op.insert : '')
+      .join('');
+      
+    const enhancedText = plainText
+      .split('\n')
+      .map(line => {
+        if (line.trim()) {
+          return line.charAt(0).toUpperCase() + line.slice(1);
+        }
+        return line;
+      })
+      .join('\n');
+    
+    console.log('Debug Delta - Plain text:', plainText);
+    console.log('Debug Delta - Enhanced text:', enhancedText);
+    
+    // Process with our function
+    const enhanced = preserveListFormatting(content, enhancedText);
+    
+    // Log the result
+    console.log('Debug Delta - Result:', JSON.stringify(enhanced, null, 2));
+    
+    return res.json({
+      original: content,
+      enhanced,
+      plainText,
+      enhancedText
+    });
+  } catch (error) {
+    console.error('Debug Delta - Error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
 
 export default router; 

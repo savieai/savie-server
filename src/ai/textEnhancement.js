@@ -18,6 +18,8 @@ Do NOT:
 
 export async function enhanceText(content, isQuillDelta = false) {
   try {
+    console.log(`[DEBUG] enhanceText called with isQuillDelta=${isQuillDelta}`);
+    
     if (!isQuillDelta) {
       // Original plain text implementation
       const response = await openai.chat.completions.create({
@@ -37,14 +39,21 @@ export async function enhanceText(content, isQuillDelta = false) {
     } else {
       // Handle Quill Delta format
       let delta = typeof content === 'string' ? JSON.parse(content) : content;
+      console.log('[DEBUG] Original delta:', JSON.stringify(delta));
       
-      // Check if this is a to-do list or bullet list Delta (special handling)
+      // Improved detection of formatted lists - check for any line with list attributes
       const isFormattedList = delta.ops && delta.ops.some(op => 
-        op.attributes && (
+        (op.attributes && (
           op.attributes.list === 'checked' || 
           op.attributes.list === 'unchecked' || 
           op.attributes.list === 'bullet'
-        )
+        )) || 
+        (op.insert === '\n' && op.attributes && op.attributes.list)
+      );
+      
+      // Detect todo embedding format
+      const hasTodoEmbeds = delta.ops && delta.ops.some(op => 
+        typeof op.insert === 'object' && op.insert && op.insert.todo !== undefined
       );
       
       // Enhanced detection: Count how many list items we have
@@ -53,37 +62,72 @@ export async function enhanceText(content, isQuillDelta = false) {
         delta.ops.forEach(op => {
           if (op.insert === '\n' && op.attributes && op.attributes.list) {
             listItemCount++;
+            console.log(`[DEBUG] Found list item with attribute: ${op.attributes.list}`);
           }
         });
       }
       
-      console.log(`Detected formatted list: ${isFormattedList}, list item count: ${listItemCount}`);
+      // Detect whether content looks like a to-do list based on text
+      let plainText = '';
+      if (delta.ops) {
+        delta.ops.forEach(op => {
+          if (typeof op.insert === 'string') {
+            plainText += op.insert;
+          }
+        });
+      }
+      
+      // Check if it contains todo-related keywords
+      const todoKeywords = ['to do', 'todo', 'to-do', 'checklist', 'task list'];
+      const looksLikeTodoList = todoKeywords.some(keyword => 
+        plainText.toLowerCase().includes(keyword)
+      );
+      
+      const shouldUseListPreservation = isFormattedList || hasTodoEmbeds || looksLikeTodoList;
+      
+      console.log(`[DEBUG] Detection results:
+        - isFormattedList: ${isFormattedList}
+        - hasTodoEmbeds: ${hasTodoEmbeds}
+        - looksLikeTodoList: ${looksLikeTodoList}
+        - listItemCount: ${listItemCount}
+        - shouldUseListPreservation: ${shouldUseListPreservation}`);
       
       // Extract plain text and formatting info from Delta
-      const { plainText, formatMap, lineBreaks } = analyzeQuillDelta(delta);
+      const { plainText: extractedText, formatMap, lineBreaks } = analyzeQuillDelta(delta);
+      console.log('[DEBUG] Extracted plain text:', extractedText);
       
       // Enhance the extracted text
       const response = await openai.chat.completions.create({
         model: process.env.AI_DEFAULT_MODEL || "gpt-4o-mini",
         messages: [
           { role: "system", content: ENHANCEMENT_PROMPT },
-          { role: "user", content: plainText }
+          { role: "user", content: extractedText }
         ],
         temperature: 0.3,
       });
       
       const enhancedText = response.choices[0].message.content;
+      console.log('[DEBUG] Enhanced text:', enhancedText);
       
       // Reapply formatting while preserving line breaks
       let enhancedDelta;
       
-      // Use specialized handling for lists with 2+ items to ensure formatting integrity
-      if (isFormattedList && listItemCount >= 1) {
-        console.log("Using specialized list formatting preservation");
+      // Use specialized handling for lists to ensure formatting integrity
+      if (shouldUseListPreservation) {
+        console.log("[DEBUG] Using specialized list formatting preservation");
         enhancedDelta = preserveListFormatting(delta, enhancedText);
       } else {
         // Standard approach for regular content
+        console.log("[DEBUG] Using standard reconstruction");
         enhancedDelta = reconstructQuillDelta(enhancedText, formatMap, lineBreaks);
+      }
+      
+      console.log('[DEBUG] Final enhanced delta:', JSON.stringify(enhancedDelta));
+      
+      // Ensure enhancedDelta has the correct structure expected by the client
+      if (!enhancedDelta.hasOwnProperty('ops')) {
+        console.error('[ERROR] Enhanced delta missing ops property. Adding it.');
+        enhancedDelta = { ops: Array.isArray(enhancedDelta) ? enhancedDelta : [{ insert: JSON.stringify(enhancedDelta) }] };
       }
       
       return {
@@ -317,123 +361,108 @@ export function preserveListFormatting(originalDelta, enhancedText) {
   let nonListOps = [];
   let defaultListAttribute = null;
   
-  // Add debug logging
-  console.log("Original Delta:", JSON.stringify(originalDelta));
-  console.log("Enhanced Text:", enhancedText);
-  
   // First pass: collect formatting info and find the dominant list type
   if (originalDelta.ops) {
     // Count attribute types to determine the default
     let checkedCount = 0;
     let uncheckedCount = 0;
     let bulletCount = 0;
+    let orderedCount = 0;
     
-    originalDelta.ops.forEach((op, index) => {
-      if (typeof op.insert === 'string') {
-        if (op.insert === '\n' && op.attributes && op.attributes.list) {
-          // This is a list item line break (bullet, todo, etc)
-          listAttributes.push(op.attributes);
-          console.log(`Found list attribute at index ${index}:`, op.attributes);
-          
-          // Count by type
-          if (op.attributes.list === 'checked') checkedCount++;
-          if (op.attributes.list === 'unchecked') uncheckedCount++;
-          if (op.attributes.list === 'bullet') bulletCount++;
-        } else if (op.insert !== '\n') {
-          // Collect non-list ops for additional formatting
-          if (op.attributes) {
-            nonListOps.push({
-              text: op.insert,
-              attributes: op.attributes
-            });
-          }
+    originalDelta.ops.forEach(op => {
+      if (op.attributes && op.attributes.list) {
+        if (op.attributes.list === 'checked') {
+          checkedCount++;
+        } else if (op.attributes.list === 'unchecked') {
+          uncheckedCount++;
+        } else if (op.attributes.list === 'bullet') {
+          bulletCount++;
+        } else if (op.attributes.list === 'ordered') {
+          orderedCount++;
         }
+        
+        listAttributes.push({ ...op.attributes });
+      } else {
+        nonListOps.push(op);
       }
     });
     
-    // Determine default list attribute for consistency
-    if (uncheckedCount >= checkedCount && uncheckedCount >= bulletCount) {
-      defaultListAttribute = { list: 'unchecked' };
-    } else if (bulletCount >= uncheckedCount && bulletCount >= checkedCount) {
-      defaultListAttribute = { list: 'bullet' };
-    } else if (checkedCount > 0) {
-      defaultListAttribute = { list: 'checked' };
+    // Determine the default list attribute based on frequency
+    if (checkedCount > 0 || uncheckedCount > 0) {
+      defaultListAttribute = { list: checkedCount > uncheckedCount ? 'checked' : 'unchecked' };
+    } else if (bulletCount > 0 || orderedCount > 0) {
+      defaultListAttribute = { list: bulletCount > orderedCount ? 'bullet' : 'ordered' };
     }
-    
-    console.log("Default list attribute:", defaultListAttribute);
   }
   
-  console.log(`Found ${listAttributes.length} list attributes`);
+  // Split enhanced text into lines
+  const lines = enhancedText.split('\n');
   
-  // Split the enhanced text into lines - trim the text to remove trailing newlines
-  const enhancedTextTrimmed = enhancedText.trimEnd();
-  const enhancedLines = enhancedTextTrimmed.split('\n');
-  console.log(`Enhanced text has ${enhancedLines.length} lines`);
+  // Determine if this is a list at all
+  const isList = defaultListAttribute !== null;
   
+  // Find title line (line without list formatting)
+  let titleLineIndex = -1;
+  if (isList && nonListOps.length > 0) {
+    const firstLine = nonListOps.map(op => op.insert || '').join('').split('\n')[0];
+    if (firstLine && firstLine.trim()) {
+      titleLineIndex = 0;
+    }
+  }
+  
+  // Create a new delta with the enhanced text but preserve formatting
   const newDelta = { ops: [] };
   
-  // Create new Delta with preserved list formatting
-  enhancedLines.forEach((line, index) => {
-    // Skip empty lines at the beginning
-    if (index === 0 && !line.trim()) {
-      return;
-    }
+  // For each line in the enhanced text
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    const isLastLine = index === lines.length - 1;
     
-    // Add the text content
-    if (line.trim() || index < enhancedLines.length - 1) {
-      // Check if we have any text formatting to apply to this line
-      const matchingFormat = nonListOps.find(op => line.includes(op.text));
-      if (matchingFormat) {
-        newDelta.ops.push({ 
-          insert: line,
-          attributes: matchingFormat.attributes
-        });
-      } else {
+    // We'll handle things differently for the last line
+    if (!isLastLine) {
+      // Regular line break handling (no change)
+      if (isList && index > titleLineIndex) {
+        // This line should have list formatting
+        
+        // First add the text content
         newDelta.ops.push({ insert: line });
-      }
-    }
-    
-    // Critical fix: Only add list formatting to non-empty lines or lines that had content
-    // Each line should get a list attribute if available
-    if (index < enhancedLines.length - 1 || (enhancedText.endsWith('\n') && line.trim())) {
-      // Find appropriate list attribute - ensure we don't run out
-      let attributeToUse;
-      
-      if (listAttributes.length > 0) {
-        // Modified: Apply list attributes to all content lines, not just the ones with matching index
-        // Use the available attributes, and if we run out, use the default
-        if (index < listAttributes.length) {
-          attributeToUse = listAttributes[index];
-        } else if (defaultListAttribute && line.trim()) {
-          // If we have more lines than original attributes, use the default attribute type
-          attributeToUse = defaultListAttribute;
+        
+        // Then add the formatting for this line
+        let attributeToUse = defaultListAttribute;
+        if (index - (titleLineIndex >= 0 ? 1 : 0) < listAttributes.length) {
+          attributeToUse = listAttributes[index - (titleLineIndex >= 0 ? 1 : 0)];
         }
-      } else if (defaultListAttribute && line.trim()) {
-        // Fall back to default if we ran out, but only for non-empty lines
-        attributeToUse = defaultListAttribute;
-      }
-      
-      // Only apply list attributes to non-empty lines
-      if (attributeToUse && line.trim()) {
-        // Apply list formatting to this line
+        
         newDelta.ops.push({
           insert: '\n',
           attributes: attributeToUse
         });
-        console.log(`Applied list attribute to line ${index}:`, attributeToUse);
       } else {
-        // Regular line break
-        newDelta.ops.push({ insert: '\n' });
-        console.log(`No list attribute for line ${index}`);
+        // Regular text without special formatting
+        newDelta.ops.push({ insert: line + '\n' });
       }
+    } 
+    // Always handle the last line specially if it's part of a list
+    else if (isList && line.trim() && index > titleLineIndex) {
+      // First add the text content if we haven't already
+      newDelta.ops.push({ insert: line });
+      
+      // Then always add the formatting for the last line
+      let attributeToUse = defaultListAttribute;
+      if (index - (titleLineIndex >= 0 ? 1 : 0) < listAttributes.length) {
+        attributeToUse = listAttributes[index - (titleLineIndex >= 0 ? 1 : 0)];
+      }
+      
+      newDelta.ops.push({
+        insert: '\n',
+        attributes: attributeToUse
+      });
     }
-  });
-  
-  // Final check: Add trailing newline if original text ended with one
-  if (enhancedText.endsWith('\n') && !enhancedTextTrimmed.endsWith('\n')) {
-    newDelta.ops.push({ insert: '\n' });
+    else if (line.trim() || isLastLine) {
+      // Handle the last line, which might be empty
+      newDelta.ops.push({ insert: line + (isLastLine && !line.trim() ? '' : '\n') });
+    }
   }
   
-  console.log("Result Delta:", JSON.stringify(newDelta));
   return newDelta;
 } 
